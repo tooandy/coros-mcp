@@ -806,6 +806,7 @@ def _build_workout_program_payload(
     steps: list[dict],
     sport_type: int = 2,
     intensity_type: int | None = None,
+    overview: str = "",
 ) -> dict:
     """Sync builder for the cycling/intervals/running program dict.
 
@@ -982,9 +983,20 @@ def _build_workout_program_payload(
                 ex["exerciseType"] = 2
             ex.setdefault("exerciseKind", 0)
             ex.setdefault("gradeSystem", 0)
-            ex["hrType"] = 2 if intensity_type == 2 else 0
-            ex.setdefault("intensityMultiplier", 0)
-            ex.setdefault("intensityPercent", 0)
+            # For steps that have an explicit pace target, apply the workout's
+            # intensity_type + multiplier. For steps without a pace (WU/CD on
+            # non-quality days), use intensityType=0 so Coros shows no target
+            # instead of 00:00-00:00.
+            has_pace = ("intensityValue" in ex and ex["intensityValue"] != 0)
+            if has_pace:
+                ex["hrType"] = 2 if intensity_type == 2 else 0
+                ex.setdefault("intensityMultiplier", 0)
+                ex["intensityDisplayUnit"] = "1" if intensity_type in (2, 3) else "0"
+            else:
+                ex["hrType"] = 0
+                ex["intensityType"] = 0
+                ex["intensityMultiplier"] = 0
+                ex["intensityDisplayUnit"] = "0"
             ex.setdefault("intensityPercentExtend", 0)
             ex.setdefault("onsightGradeOffset", 0)
             ex.setdefault("overview", "")
@@ -992,6 +1004,11 @@ def _build_workout_program_payload(
             ex.setdefault("sourceId", "0")
             ex.setdefault("subType", 0)
             ex.setdefault("targetDisplayUnit", 0)
+            # Running distance-based steps should render in metric units.
+            # Leaving this at 0 lets downstream callers accidentally inherit
+            # non-metric display defaults on interval recoveries.
+            if ex.get("targetType") == 5:
+                ex["targetDisplayUnit"] = 1
         # exerciseNum / totalSets count real exercise steps only. A repeat
         # group adds a structural container row (isGroup=True) to `exercises`
         # that is glue, not a step — counting it inflates these by one per
@@ -1002,7 +1019,7 @@ def _build_workout_program_payload(
             "exerciseNum": real_step_count,
             "gradeSystemVersion": 0,
             "hybridTotalSets": 0,
-            "overview": "",
+            "overview": overview,
             "poolLength": 0,
             "poolLengthId": 0,
             "poolLengthUnit": 0,
@@ -1193,6 +1210,35 @@ def apply_workout_calculation(program: dict, calculation: dict) -> dict:
     if (value := calculation.get("planHybridTotalSets")) is not None and "totalSets" in updated:
         updated["totalSets"] = value
 
+    return updated
+
+
+def apply_running_pace_target(
+    exercise: dict,
+    pace_low: int,
+    pace_high: int,
+) -> dict:
+    """
+    Return a copy of a running workout step with a metric pace target applied.
+
+    Coros uses ``intensityDisplayUnit`` for the pace unit shown in the UI and
+    ``targetDisplayUnit`` for the step distance unit. For running workouts we
+    want both to stay metric so interval recoveries never drift into mile
+    presentation.
+    """
+    updated = dict(exercise)
+    updated["intensityType"] = 3
+    updated["intensityValue"] = pace_low
+    updated["intensityValueExtend"] = pace_high
+    updated["intensityMultiplier"] = 1000
+    updated["intensityDisplayUnit"] = "1"
+    updated["isIntensityPercent"] = False
+    updated["intensityPercent"] = 0
+    updated["intensityPercentExtend"] = 0
+    updated["hrType"] = 0
+    updated["intensityCustom"] = 0
+    if updated.get("targetType") == 5:
+        updated["targetDisplayUnit"] = 1
     return updated
 
 
@@ -1671,6 +1717,7 @@ async def schedule_workout(
     sport_type: int = 2,
     intensity_type: int | None = None,
     sort_no: int = 1,
+    description: str = "",
 ) -> dict:
     """
     Build + schedule a one-off cycling/intervals workout for happen_day.
@@ -1681,7 +1728,13 @@ async def schedule_workout(
 
     Returns the server response 'data' dict (shape depends on Coros API).
     """
-    program = _build_workout_program_payload(name, steps, sport_type, intensity_type)
+    program = _build_workout_program_payload(
+        name,
+        steps,
+        sport_type,
+        intensity_type,
+        description,
+    )
     return await _post_schedule_inline(auth, program, happen_day, sort_no)
 
 

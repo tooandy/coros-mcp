@@ -1003,6 +1003,7 @@ async def schedule_workout(
     sport_type: int = 2,
     intensity_type: int | None = None,
     sort_no: int = 1,
+    description: str = "",
 ) -> dict:
     """
     Schedule a ONE-OFF cycling/intervals/running workout for a specific date.
@@ -1034,10 +1035,15 @@ async def schedule_workout(
         internally to the workout wire ID (sportType=1) and get the running
         metadata block. Don't pass 1 directly (it's the wire ID and is rejected).
     intensity_type : int, optional
-        Intensity type ID. Defaults per sport when omitted: runs → 2 (HR),
-        cycling → 6 (power in watts).
+        Intensity type ID. Defaults per sport when omitted: runs -> 2 (HR),
+        cycling -> 6 (power in watts).
     sort_no : int
         Order within the day (default 1).
+    description : str
+        Free-text training notes shown in the workout overview on the calendar.
+        Use it to record goals, cues, and targets, e.g.:
+        "本周重点：速度训练，4:00/km 配速，前3组找节奏，后5组稳速".
+        Multi-line strings are supported.
 
     Returns
     -------
@@ -1065,6 +1071,7 @@ async def schedule_workout(
             sport_type,
             intensity_type,
             sort_no,
+            description,
             retry_all=False,
         )
         total_minutes, steps_count = _summarize_steps(steps)

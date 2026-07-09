@@ -7,6 +7,8 @@ Covers:
   4. _env_int: malformed env value falls back instead of crashing at import
   5. add_planned_workout: does not mutate the caller's program dict
   6. _init_local_tz: malformed COROS_TIMEZONE falls back instead of crashing
+  7. schedule_workout: accepts description and writes it to program overview
+  8. apply_running_pace_target keeps running pace targets metric
 """
 
 import asyncio
@@ -216,3 +218,68 @@ class TestLocalTzInit:
         from coros_mcp.cache import utils
         monkeypatch.delenv("COROS_TIMEZONE", raising=False)
         assert utils._init_local_tz() is None
+
+
+# ---------------------------------------------------------------------------
+# 7. schedule_workout forwards description into the raw workout payload
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_schedule_workout_description_sets_program_overview(monkeypatch):
+    captured = {}
+
+    async def fake_post_schedule_inline(auth, program, happen_day, sort_no):
+        captured["program"] = program
+        captured["happen_day"] = happen_day
+        captured["sort_no"] = sort_no
+        return {"id_in_plan": "9"}
+
+    monkeypatch.setattr(coros_api, "_post_schedule_inline", fake_post_schedule_inline)
+
+    auth = coros_api.StoredAuth(
+        access_token="t", user_id="u", region="eu", timestamp=0,
+        mobile_access_token=None, mobile_login_payload=None,
+    )
+    steps = [
+        {
+            "name": "Easy",
+            "duration_minutes": 60,
+            "intensity_low": 320000,
+            "intensity_high": 360000,
+        }
+    ]
+
+    await coros_api.schedule_workout(
+        auth,
+        "HSAW02-E11K",
+        steps,
+        "20260710",
+        100,
+        3,
+        1,
+        "GMP 区间执行，保持放松",
+    )
+
+    assert captured["program"]["overview"] == "GMP 区间执行，保持放松"
+    assert captured["happen_day"] == "20260710"
+    assert captured["sort_no"] == 1
+
+
+def test_apply_running_pace_target_keeps_metric_display():
+    recovery = {
+        "name": "Recovery",
+        "targetType": 5,
+        "targetValue": 40000,
+        "targetDisplayUnit": 2,
+        "intensityDisplayUnit": "2",
+        "intensityType": 3,
+        "intensityValue": 395000,
+        "intensityValueExtend": 442000,
+    }
+
+    updated = coros_api.apply_running_pace_target(recovery, 395000, 442000)
+
+    assert updated["targetDisplayUnit"] == 1
+    assert updated["intensityDisplayUnit"] == "1"
+    assert updated["intensityValue"] == 395000
+    assert updated["intensityValueExtend"] == 442000
