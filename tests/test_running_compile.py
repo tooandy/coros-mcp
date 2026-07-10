@@ -52,15 +52,53 @@ def test_compile_running_workout_builds_group_and_overview():
     assert program["duration"] == 25 * 60
     assert program["referExercise"]["hrType"] == 0
     assert len(program["exercises"]) == 5
-    assert [ex["exerciseType"] for ex in program["exercises"]] == [1, 0, 2, 4, 3]
+    assert [ex["exerciseType"] for ex in program["exercises"]] == [1, 0, 2, 2, 3]
 
     group, work, recovery = program["exercises"][1:4]
     assert group["isGroup"] is True
     assert work["groupId"] == str(group["id"])
     assert recovery["groupId"] == str(group["id"])
+    assert work["exerciseType"] == 2
+    assert recovery["exerciseType"] == 2
     assert work["intensityType"] == 3
     assert work["intensityValue"] == 100
     assert work["intensityValueExtend"] == 105
+
+
+def test_compile_running_workout_uses_interval_round_duration_for_time_groups():
+    workout = normalize_running_workout(
+        {
+            "name": "6x hard/easy",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "interval",
+                    "repeat": 6,
+                    "work": {
+                        "action": "work",
+                        "target": {"type": "time", "value": 2, "unit": "min"},
+                        "intensity": {"type": "none"},
+                    },
+                    "recovery": {
+                        "action": "recovery",
+                        "target": {"type": "time", "value": 1, "unit": "min"},
+                        "intensity": {"type": "none"},
+                    },
+                }
+            ],
+        }
+    )
+
+    program = compile_running_workout(workout)
+
+    group, work, recovery = program["exercises"]
+    assert group["isGroup"] is True
+    assert group["targetType"] == 2
+    assert group["targetValue"] == 180
+    assert work["targetValue"] == 120
+    assert recovery["targetValue"] == 60
+    assert work["exerciseType"] == 2
+    assert recovery["exerciseType"] == 2
 
 
 def test_compile_running_workout_sets_program_hrtype_for_hr_semantics():

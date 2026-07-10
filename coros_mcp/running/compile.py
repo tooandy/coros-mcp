@@ -121,6 +121,18 @@ def _refer_exercise_hr_type(workout: RunningWorkout) -> int:
     return 0
 
 
+def _compile_interval_group_target(interval: IntervalNode) -> tuple[int, int]:
+    work_target_type, work_target_value, work_display_unit = _compile_target(interval.work.target)
+    recovery_target_type, recovery_target_value, recovery_display_unit = _compile_target(interval.recovery.target)
+
+    if work_target_type == 0 or recovery_target_type == 0:
+        raise ValueError("interval group target cannot be derived from open targets")
+    if work_target_type != recovery_target_type or work_display_unit != recovery_display_unit:
+        raise ValueError("interval group target requires matching work/recovery target types")
+
+    return work_target_type, work_target_value + recovery_target_value
+
+
 def _base_exercise(step: StepNode, exercise_id: int, exercise_type: int, sort_no: int, group_id: str) -> tuple[dict, int]:
     target_type, target_value, target_display_unit = _compile_target(step.target)
     exercise = {
@@ -166,7 +178,7 @@ def compile_running_workout(workout: RunningWorkout) -> dict:
         if isinstance(node, IntervalNode):
             exercise_id += 1
             group_id = exercise_id
-            group_target_type, group_target_value, _ = _compile_target(node.work.target)
+            group_target_type, group_target_value = _compile_interval_group_target(node)
 
             exercises.append(
                 {
@@ -202,7 +214,7 @@ def compile_running_workout(workout: RunningWorkout) -> dict:
             recovery_exercise, recovery_seconds = _base_exercise(
                 node.recovery,
                 exercise_id,
-                _ACTION_EXERCISE_TYPES[node.recovery.action],
+                2,
                 group_sort + 131072,
                 str(group_id),
             )
