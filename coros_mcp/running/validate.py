@@ -8,6 +8,21 @@ from coros_mcp.running.constraints import (
     supported_target_units,
 )
 
+_VALID_TARGET_TYPES = {"distance", "time", "training_load", "open"}
+_VALID_INTENSITY_TYPES = {
+    "heart_rate_percent_max",
+    "heart_rate_percent_reserve",
+    "heart_rate_percent_lthr",
+    "heart_rate",
+    "pace_percent_lthr",
+    "pace",
+    "effort_pace_percent_threshold",
+    "effort_pace",
+    "power",
+    "cadence",
+    "none",
+}
+_VALID_ACTIONS = {"warmup", "work", "recovery", "cooldown"}
 _ZONE_ALLOWED_INTENSITY_TYPES = {
     "heart_rate_percent_max",
     "heart_rate_percent_reserve",
@@ -31,6 +46,13 @@ def _validate_bounded_pair(low, high, label: str) -> None:
 
 
 def _validate_step(step) -> None:
+    if step.action not in _VALID_ACTIONS:
+        raise ValueError(f"unsupported step action: {step.action!r}")
+    if step.target.type not in _VALID_TARGET_TYPES:
+        raise ValueError(f"unsupported target type: {step.target.type!r}")
+    if step.intensity.type not in _VALID_INTENSITY_TYPES:
+        raise ValueError(f"unsupported intensity type: {step.intensity.type!r}")
+
     if step.target.type == "open":
         if step.target.value is not None:
             raise ValueError("open target must not include value")

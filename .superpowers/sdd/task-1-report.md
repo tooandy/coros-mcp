@@ -141,3 +141,29 @@ cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_runn
 ```
 
 Result: 25 passed
+
+## Review Fixes Round 5
+
+Addressed the last runtime validation gap without broadening scope:
+
+- `validate_running_workout()` now rejects unknown `step.action` values with an explicit enum check.
+- `validate_running_workout()` now rejects unknown `step.target.type` values before any target-specific branching.
+- `validate_running_workout()` now rejects unknown `step.intensity.type` values before any intensity-specific branching.
+
+### Additional Regression Coverage
+
+Added tests to cover:
+
+- unknown step action values
+- unknown target types
+- unknown intensity types
+
+### Verification
+
+Ran the task-specific test file after the fix:
+
+```bash
+cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_running_models.py -v
+```
+
+Result: 28 passed

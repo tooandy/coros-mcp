@@ -380,3 +380,48 @@ def test_validate_rejects_missing_required_target_fields(target, message):
 
     with pytest.raises(ValueError, match=message):
         validate_running_workout(workout)
+
+
+@pytest.mark.parametrize(
+    ("step", "message"),
+    [
+        (
+            {
+                "kind": "step",
+                "action": "tempo",
+                "target": {"type": "time", "value": 20, "unit": "min"},
+                "intensity": {"type": "none"},
+            },
+            "action",
+        ),
+        (
+            {
+                "kind": "step",
+                "action": "work",
+                "target": {"type": "pace", "value": 20},
+                "intensity": {"type": "none"},
+            },
+            "target.*type|type.*target",
+        ),
+        (
+            {
+                "kind": "step",
+                "action": "work",
+                "target": {"type": "time", "value": 20, "unit": "min"},
+                "intensity": {"type": "speed"},
+            },
+            "intensity.*type|type.*intensity",
+        ),
+    ],
+)
+def test_validate_rejects_unknown_enum_values(step, message):
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [step],
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
+        validate_running_workout(workout)
