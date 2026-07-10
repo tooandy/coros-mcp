@@ -34,3 +34,29 @@ Result: 3 passed
 
 - The new code is isolated under `coros_mcp.running` and does not touch existing workout scheduling code paths.
 - I did not run the full test suite, per task instructions.
+
+## Review Fixes
+
+Addressed the three review findings without broadening scope:
+
+- `normalize_running_workout()` now raises `ValueError` for any unsupported `kind` instead of falling back to `step`.
+- `validate_running_workout()` now rejects `zone` on non-percent intensity types.
+- `validate_running_workout()` now rejects `intensity.range` and `intensity.zone` when both are present.
+
+### Additional Regression Coverage
+
+Added tests to cover:
+
+- unknown `kind` is rejected during normalization
+- absolute intensity types cannot carry `zone`
+- `range` and `zone` are mutually exclusive
+
+### Verification
+
+Ran the task-specific test file after the fix:
+
+```bash
+cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_running_models.py -v
+```
+
+Result: 6 passed

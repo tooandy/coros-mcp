@@ -80,3 +80,65 @@ def test_validate_open_target_rejects_value():
 
     with pytest.raises(ValueError, match="open"):
         validate_running_workout(workout)
+
+
+def test_normalize_rejects_unknown_step_kind():
+    with pytest.raises(ValueError, match="kind"):
+        normalize_running_workout(
+            {
+                "name": "Broken",
+                "happen_day": "20260715",
+                "steps": [
+                    {
+                        "kind": "tempo",
+                        "action": "work",
+                        "target": {"type": "time", "value": 20, "unit": "min"},
+                        "intensity": {"type": "none"},
+                    }
+                ],
+            }
+        )
+
+
+def test_validate_rejects_zone_for_absolute_intensity():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {"type": "pace", "zone": {"preset": "warmup_zone"}},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="zone"):
+        validate_running_workout(workout)
+
+
+def test_validate_rejects_range_and_zone_together():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {
+                        "type": "pace_percent_lthr",
+                        "range": {"low": 4.0, "high": 4.5},
+                        "zone": {"preset": "lactate_threshold_zone"},
+                    },
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="range.*zone|zone.*range"):
+        validate_running_workout(workout)

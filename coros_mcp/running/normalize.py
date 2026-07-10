@@ -22,6 +22,9 @@ def _normalize_intensity(payload: dict) -> IntensitySpec:
 
 
 def _normalize_step(payload: dict) -> StepNode:
+    kind = payload.get("kind", "step")
+    if kind != "step":
+        raise ValueError(f"unsupported step kind: {kind!r}")
     return StepNode(
         kind="step",
         action=payload["action"],
@@ -33,17 +36,20 @@ def _normalize_step(payload: dict) -> StepNode:
 def normalize_running_workout(payload: dict) -> RunningWorkout:
     steps: list[StepNode | IntervalNode] = []
     for step in payload["steps"]:
-        if step["kind"] == "interval":
+        kind = step.get("kind", "step")
+        if kind == "interval":
             steps.append(
                 IntervalNode(
                     kind="interval",
                     repeat=int(step["repeat"]),
-                    work=_normalize_step({"kind": "step", **step["work"]}),
-                    recovery=_normalize_step({"kind": "step", **step["recovery"]}),
+                    work=_normalize_step(step["work"]),
+                    recovery=_normalize_step(step["recovery"]),
                 )
             )
-        else:
+        elif kind == "step":
             steps.append(_normalize_step(step))
+        else:
+            raise ValueError(f"unsupported step kind: {kind!r}")
 
     return RunningWorkout(
         name=payload["name"],
