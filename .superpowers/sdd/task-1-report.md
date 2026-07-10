@@ -115,3 +115,29 @@ cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_runn
 ```
 
 Result: 20 passed
+
+## Review Fixes Round 4
+
+Addressed the last two review findings without broadening scope:
+
+- `distance` and `time` targets now require numeric `value`; string-like values are rejected.
+- `%`-based intensity `range.low/high` and `zone.preset=custom` `low/high` now require numeric bounds, and invalid bound ordering is rejected.
+
+### Additional Regression Coverage
+
+Added tests to cover:
+
+- non-numeric `distance` / `time` target values
+- non-numeric `%` intensity `range.low`
+- non-numeric `custom` zone `high`
+- reversed `custom` zone bounds where `high < low`
+
+### Verification
+
+Ran the task-specific test file after the fix:
+
+```bash
+cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_running_models.py -v
+```
+
+Result: 25 passed

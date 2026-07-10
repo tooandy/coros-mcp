@@ -21,6 +21,15 @@ def _is_numeric(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _validate_bounded_pair(low, high, label: str) -> None:
+    if low is None or high is None:
+        raise ValueError(f"{label} requires both low and high values")
+    if not _is_numeric(low) or not _is_numeric(high):
+        raise ValueError(f"{label} low/high must be numeric")
+    if high < low:
+        raise ValueError(f"{label} high must be >= low")
+
+
 def _validate_step(step) -> None:
     if step.target.type == "open":
         if step.target.value is not None:
@@ -28,6 +37,8 @@ def _validate_step(step) -> None:
     else:
         if step.target.value is None:
             raise ValueError(f"{step.target.type} target requires value")
+        if step.target.type in {"distance", "time"} and not _is_numeric(step.target.value):
+            raise ValueError(f"{step.target.type} target requires numeric value")
         if step.target.type == "training_load" and not _is_numeric(step.target.value):
             raise ValueError("training_load target requires numeric value")
         if step.target.type in {"distance", "time"} and not is_supported_target_unit(step.target.type, step.target.unit):
@@ -55,8 +66,7 @@ def _validate_step(step) -> None:
     if step.intensity.zone and step.intensity.type not in _ZONE_ALLOWED_INTENSITY_TYPES:
         raise ValueError("zone is only supported for percent-based intensity types")
     if step.intensity.zone and step.intensity.zone.preset == "custom":
-        if step.intensity.zone.low is None or step.intensity.zone.high is None:
-            raise ValueError("custom zone requires both low and high values")
+        _validate_bounded_pair(step.intensity.zone.low, step.intensity.zone.high, "custom zone")
     if step.intensity.zone and step.intensity.zone.preset != "custom":
         zone_family = percent_zone_family_for(step.intensity.type)
         if zone_family is None:
@@ -65,6 +75,8 @@ def _validate_step(step) -> None:
             raise ValueError(
                 f"zone preset '{step.intensity.zone.preset}' is invalid for intensity type '{step.intensity.type}'"
             )
+    if step.intensity.range and step.intensity.type in _ZONE_ALLOWED_INTENSITY_TYPES:
+        _validate_bounded_pair(step.intensity.range.low, step.intensity.range.high, "percent intensity range")
 
 
 def validate_running_workout(workout: RunningWorkout) -> None:

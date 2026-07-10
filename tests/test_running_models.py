@@ -184,6 +184,33 @@ def test_validate_rejects_non_numeric_training_load_value():
         validate_running_workout(workout)
 
 
+@pytest.mark.parametrize(
+    ("target", "message"),
+    [
+        ({"type": "distance", "value": "1000", "unit": "m"}, "distance.*numeric|numeric.*distance"),
+        ({"type": "time", "value": "20", "unit": "min"}, "time.*numeric|numeric.*time"),
+    ],
+)
+def test_validate_rejects_non_numeric_distance_and_time_values(target, message):
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": target,
+                    "intensity": {"type": "none"},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
+        validate_running_workout(workout)
+
+
 def test_validate_rejects_direct_numeric_intensity_without_range():
     workout = normalize_running_workout(
         {
@@ -221,6 +248,52 @@ def test_validate_rejects_direct_numeric_intensity_without_range_low():
     )
 
     with pytest.raises(ValueError, match="range.low"):
+        validate_running_workout(workout)
+
+
+@pytest.mark.parametrize(
+    ("intensity", "message"),
+    [
+        (
+            {
+                "type": "pace_percent_lthr",
+                "range": {"low": "4.0", "high": 4.5},
+            },
+            "range.*numeric|numeric.*range",
+        ),
+        (
+            {
+                "type": "pace_percent_lthr",
+                "zone": {"preset": "custom", "low": 95, "high": "90"},
+            },
+            "custom zone.*numeric|numeric.*custom zone",
+        ),
+        (
+            {
+                "type": "pace_percent_lthr",
+                "zone": {"preset": "custom", "low": 95, "high": 90},
+            },
+            "high.*low|low.*high",
+        ),
+    ],
+)
+def test_validate_rejects_non_numeric_or_reversed_percent_bounds(intensity, message):
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": intensity,
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
         validate_running_workout(workout)
 
 
