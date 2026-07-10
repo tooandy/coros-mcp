@@ -202,6 +202,34 @@ def test_compile_running_workout_rejects_unsupported_effort_pace_semantics():
         compile_running_workout(workout)
 
 
+def test_compile_running_workout_keeps_effort_pace_unsupported_before_open_ended_guard():
+    workout = normalize_running_workout(
+        {
+            "name": "Effort pace direct test",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {
+                        "type": "effort_pace",
+                        "range": {"low": 4.0},
+                    },
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        compile_running_workout(workout)
+
+    message = str(exc_info.value)
+    assert "effort_pace" in message
+    assert "not yet supported" in message
+    assert "open-ended" not in message
+
+
 def test_compile_rejects_open_ended_direct_range_until_supported():
     workout = normalize_running_workout(
         {
