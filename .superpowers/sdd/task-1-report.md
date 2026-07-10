@@ -191,3 +191,27 @@ cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_runn
 ```
 
 Result: 32 passed
+
+## Review Fixes Round 7
+
+Addressed the last remaining spec mismatch without broadening scope:
+
+- `time` target supported units now include `sec` in the shared constraint definition.
+- Validation now accepts `time` targets with `unit="sec"` because it routes through the corrected supported-unit check.
+
+### Additional Regression Coverage
+
+Updated tests to cover:
+
+- `time` targets with `unit="sec"` are accepted by validation
+- `sec` is no longer listed as an unsupported `time` unit
+
+### Verification
+
+Ran the task-specific test file after the fix:
+
+```bash
+cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_running_models.py -q
+```
+
+Result: 32 passed

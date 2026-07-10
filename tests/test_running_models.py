@@ -321,7 +321,6 @@ def test_validate_rejects_reversed_direct_numeric_bounds():
     ("target", "message"),
     [
         ({"type": "distance", "value": 1000, "unit": "km"}, "unsupported unit|supported unit"),
-        ({"type": "time", "value": 20, "unit": "sec"}, "unsupported unit|supported unit"),
     ],
 )
 def test_validate_rejects_unsupported_distance_and_time_units(target, message):
@@ -342,6 +341,25 @@ def test_validate_rejects_unsupported_distance_and_time_units(target, message):
 
     with pytest.raises(ValueError, match=message):
         validate_running_workout(workout)
+
+
+def test_validate_accepts_time_unit_sec():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "sec"},
+                    "intensity": {"type": "none"},
+                }
+            ],
+        }
+    )
+
+    validate_running_workout(workout)
 
 
 @pytest.mark.parametrize(

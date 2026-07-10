@@ -2,7 +2,7 @@ from __future__ import annotations
 
 _SUPPORTED_TARGET_UNITS = {
     "distance": {"m"},
-    "time": {"min"},
+    "time": {"min", "sec"},
 }
 
 _PERCENT_INTENSITY_ZONE_FAMILIES = {
@@ -74,4 +74,3 @@ def percent_zone_family_for(intensity_type: str) -> frozenset[str] | None:
     if family is None:
         return None
     return frozenset(family)
-
