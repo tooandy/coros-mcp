@@ -4,9 +4,9 @@ from coros_mcp.running.models import IntervalNode, RunningWorkout
 from coros_mcp.running.constraints import (
     is_direct_numeric_intensity,
     is_supported_target_unit,
-    percent_zone_family_for,
     supported_target_units,
 )
+from coros_mcp.running.zones import resolve_zone_range
 
 _VALID_TARGET_TYPES = {"distance", "time", "training_load", "open"}
 _VALID_INTENSITY_TYPES = {
@@ -87,13 +87,7 @@ def _validate_step(step) -> None:
     if step.intensity.zone and step.intensity.zone.preset == "custom":
         _validate_bounded_pair(step.intensity.zone.low, step.intensity.zone.high, "custom zone")
     if step.intensity.zone and step.intensity.zone.preset != "custom":
-        zone_family = percent_zone_family_for(step.intensity.type)
-        if zone_family is None:
-            raise ValueError("zone is only supported for percent-based intensity types")
-        if step.intensity.zone.preset not in zone_family:
-            raise ValueError(
-                f"zone preset '{step.intensity.zone.preset}' is invalid for intensity type '{step.intensity.type}'"
-            )
+        resolve_zone_range(step.intensity.type, step.intensity.zone.preset)
     if step.intensity.range and step.intensity.type in _ZONE_ALLOWED_INTENSITY_TYPES:
         _validate_bounded_pair(step.intensity.range.low, step.intensity.range.high, "percent intensity range")
 
