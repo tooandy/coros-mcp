@@ -200,3 +200,26 @@ def test_compile_running_workout_rejects_unsupported_effort_pace_semantics():
 
     with pytest.raises(ValueError, match="effort_pace_percent_threshold"):
         compile_running_workout(workout)
+
+
+def test_compile_rejects_open_ended_direct_range_until_supported():
+    workout = normalize_running_workout(
+        {
+            "name": "Open-ended pace test",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {
+                        "type": "pace",
+                        "range": {"low": 4.0},
+                    },
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="open-ended"):
+        compile_running_workout(workout)

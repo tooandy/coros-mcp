@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from coros_mcp.running.constraints import is_direct_numeric_intensity
 from coros_mcp.running.models import IntensitySpec, IntervalNode, RunningWorkout, StepNode, TargetSpec
 from coros_mcp.running.validate import validate_running_workout
 from coros_mcp.running.zones import resolve_zone_range
@@ -59,6 +60,10 @@ def _compile_intensity(intensity: IntensitySpec) -> dict:
         else:
             low, high = resolve_zone_range(intensity.type, intensity.zone.preset)
     elif intensity.range is not None:
+        if is_direct_numeric_intensity(intensity.type) and intensity.range.high is None:
+            raise ValueError(
+                f"open-ended intensity range for {intensity.type!r} is not yet supported by the COROS compiler"
+            )
         low = int(intensity.range.low)
         high = int(intensity.range.high if intensity.range.high is not None else intensity.range.low)
     else:
@@ -136,7 +141,13 @@ def _compile_interval_group_target(interval: IntervalNode) -> tuple[int, int]:
     return 0, 0
 
 
-def _base_exercise(step: StepNode, exercise_id: int, exercise_type: int, sort_no: int, group_id: str) -> tuple[dict, int]:
+def _base_exercise(
+    step: StepNode,
+    exercise_id: int,
+    exercise_type: int,
+    sort_no: int,
+    group_id: str,
+) -> tuple[dict, int]:
     target_type, target_value, target_display_unit = _compile_target(step.target)
     exercise = {
         "exerciseKind": 0,

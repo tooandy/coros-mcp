@@ -271,7 +271,7 @@ def test_validate_rejects_direct_numeric_intensity_without_range_low():
         validate_running_workout(workout)
 
 
-def test_validate_rejects_direct_numeric_intensity_with_single_side_range():
+def test_validate_allows_open_ended_direct_numeric_intensity_range_for_compile_guard():
     workout = normalize_running_workout(
         {
             "name": "Broken",
@@ -287,8 +287,7 @@ def test_validate_rejects_direct_numeric_intensity_with_single_side_range():
         }
     )
 
-    with pytest.raises(ValueError, match="both low and high|low and high"):
-        validate_running_workout(workout)
+    validate_running_workout(workout)
 
 
 @pytest.mark.parametrize(

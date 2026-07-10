@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from coros_mcp.running.models import IntervalNode, RunningWorkout
 from coros_mcp.running.constraints import (
     is_direct_numeric_intensity,
     is_supported_target_unit,
     supported_target_units,
 )
+from coros_mcp.running.models import IntervalNode, RunningWorkout
 from coros_mcp.running.zones import resolve_zone_range
 
 _VALID_TARGET_TYPES = {"distance", "time", "training_load", "open"}
@@ -45,6 +45,19 @@ def _validate_bounded_pair(low, high, label: str) -> None:
         raise ValueError(f"{label} high must be >= low")
 
 
+def _validate_direct_numeric_range(low, high, label: str) -> None:
+    if low is None:
+        raise ValueError(f"{label} requires both low and high values")
+    if not _is_numeric(low):
+        raise ValueError(f"{label} low/high must be numeric")
+    if high is None:
+        return
+    if not _is_numeric(high):
+        raise ValueError(f"{label} low/high must be numeric")
+    if high < low:
+        raise ValueError(f"{label} high must be >= low")
+
+
 def _validate_step(step) -> None:
     if step.action not in _VALID_ACTIONS:
         raise ValueError(f"unsupported step action: {step.action!r}")
@@ -65,7 +78,9 @@ def _validate_step(step) -> None:
             raise ValueError(f"{step.target.type} target requires numeric value")
         if step.target.type == "training_load" and not _is_numeric(step.target.value):
             raise ValueError("training_load target requires numeric value")
-        if step.target.type in {"distance", "time"} and not is_supported_target_unit(step.target.type, step.target.unit):
+        if step.target.type in {"distance", "time"} and not is_supported_target_unit(
+            step.target.type, step.target.unit
+        ):
             allowed_units = ", ".join(supported_target_units(step.target.type))
             raise ValueError(f"{step.target.type} target requires supported unit: {allowed_units}")
 
@@ -80,7 +95,11 @@ def _validate_step(step) -> None:
             raise ValueError("zone is only supported for percent-based intensity types")
         if not step.intensity.range:
             raise ValueError(f"{step.intensity.type} intensity requires range")
-        _validate_bounded_pair(step.intensity.range.low, step.intensity.range.high, f"{step.intensity.type} intensity range")
+        _validate_direct_numeric_range(
+            step.intensity.range.low,
+            step.intensity.range.high,
+            f"{step.intensity.type} intensity range",
+        )
         return
     if step.intensity.zone and step.intensity.type not in _ZONE_ALLOWED_INTENSITY_TYPES:
         raise ValueError("zone is only supported for percent-based intensity types")
