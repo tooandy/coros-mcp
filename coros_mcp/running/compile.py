@@ -20,13 +20,16 @@ _HR_PERCENT_INTENSITY_TYPES = {
 
 _PACE_PERCENT_INTENSITY_TYPES = {
     "pace_percent_lthr",
+    "effort_pace_percent_threshold",
 }
 
 _HR_INTENSITY_TYPES = _HR_PERCENT_INTENSITY_TYPES | {"heart_rate"}
 
-_UNSUPPORTED_INTENSITY_TYPES = {
-    "effort_pace",
-    "effort_pace_percent_threshold",
+_HR_TYPE_BY_INTENSITY = {
+    "heart_rate_percent_max": 1,
+    "heart_rate_percent_reserve": 2,
+    "heart_rate_percent_lthr": 3,
+    "heart_rate": 2,
 }
 
 
@@ -53,7 +56,9 @@ def _compile_target(target: TargetSpec) -> tuple[int, int, int]:
     if target.type == "distance":
         return 5, int(target.value * 100), 1
     if target.type == "open":
-        return 0, 0, 0
+        return 1, 0, 0
+    if target.type == "training_load":
+        return 6, int(target.value), 0
     raise ValueError(f"target type {target.type!r} is not yet supported by the COROS compiler")
 
 
@@ -70,11 +75,6 @@ def _compile_intensity(intensity: IntensitySpec) -> dict:
             "intensityValueExtend": 0,
             "isIntensityPercent": False,
         }
-    if intensity.type in _UNSUPPORTED_INTENSITY_TYPES:
-        raise ValueError(
-            f"intensity type {intensity.type!r} is not yet supported by the COROS compiler"
-        )
-
     if intensity.zone is not None:
         if intensity.zone.preset == "custom":
             low = int(intensity.zone.low)
@@ -93,7 +93,7 @@ def _compile_intensity(intensity: IntensitySpec) -> dict:
 
     if intensity.type in _HR_PERCENT_INTENSITY_TYPES:
         return {
-            "hrType": 2,
+            "hrType": _HR_TYPE_BY_INTENSITY[intensity.type],
             "intensityDisplayUnit": "0",
             "intensityMultiplier": 0,
             "intensityType": 2,
@@ -103,7 +103,7 @@ def _compile_intensity(intensity: IntensitySpec) -> dict:
         }
     if intensity.type == "heart_rate":
         return {
-            "hrType": 2,
+            "hrType": _HR_TYPE_BY_INTENSITY[intensity.type],
             "intensityDisplayUnit": "0",
             "intensityMultiplier": 0,
             "intensityType": 2,
@@ -116,10 +116,20 @@ def _compile_intensity(intensity: IntensitySpec) -> dict:
             "hrType": 0,
             "intensityDisplayUnit": "1",
             "intensityMultiplier": 1000,
-            "intensityType": 3,
+            "intensityType": 8 if intensity.type == "effort_pace_percent_threshold" else 3,
             "intensityValue": 0,
             "intensityValueExtend": 0,
             **_percent_intensity_fields(low, high),
+        }
+    if intensity.type == "effort_pace":
+        return {
+            "hrType": 0,
+            "intensityDisplayUnit": "1",
+            "intensityMultiplier": 1000,
+            "intensityType": 8,
+            "intensityValue": low,
+            "intensityValueExtend": high,
+            **_default_intensity_percent_fields(),
         }
     if intensity.type == "pace":
         return {
@@ -270,7 +280,7 @@ def compile_running_workout(workout: RunningWorkout) -> dict:
             recovery_exercise, recovery_seconds = _base_exercise(
                 node.recovery,
                 exercise_id,
-                2,
+                _ACTION_EXERCISE_TYPES[node.recovery.action],
                 group_sort + 131072,
                 str(group_id),
             )

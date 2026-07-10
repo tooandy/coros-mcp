@@ -52,7 +52,7 @@ def test_compile_running_workout_builds_group_and_overview():
     assert program["duration"] == 25 * 60
     assert program["referExercise"]["hrType"] == 0
     assert len(program["exercises"]) == 5
-    assert [ex["exerciseType"] for ex in program["exercises"]] == [1, 0, 2, 2, 3]
+    assert [ex["exerciseType"] for ex in program["exercises"]] == [1, 0, 2, 4, 3]
 
     group, work, recovery = program["exercises"][1:4]
     assert group["isGroup"] is True
@@ -61,7 +61,7 @@ def test_compile_running_workout_builds_group_and_overview():
     assert work["groupId"] == str(group["id"])
     assert recovery["groupId"] == str(group["id"])
     assert work["exerciseType"] == 2
-    assert recovery["exerciseType"] == 2
+    assert recovery["exerciseType"] == 4
     assert work["intensityType"] == 3
     assert work["isIntensityPercent"] is True
     assert work["intensityPercent"] == 100_000
@@ -103,7 +103,7 @@ def test_compile_running_workout_uses_interval_round_duration_for_time_groups():
     assert work["targetValue"] == 120
     assert recovery["targetValue"] == 60
     assert work["exerciseType"] == 2
-    assert recovery["exerciseType"] == 2
+    assert recovery["exerciseType"] == 4
 
 
 def test_compile_running_workout_uses_structural_header_for_open_interval_groups():
@@ -137,7 +137,7 @@ def test_compile_running_workout_uses_structural_header_for_open_interval_groups
     assert group["targetType"] == 0
     assert group["targetValue"] == 0
     assert work["targetType"] == 2
-    assert recovery["targetType"] == 0
+    assert recovery["targetType"] == 1
 
 
 def test_compile_running_workout_sets_program_hrtype_for_hr_semantics():
@@ -162,7 +162,17 @@ def test_compile_running_workout_sets_program_hrtype_for_hr_semantics():
     assert program["referExercise"]["hrType"] == 3
 
 
-def test_compile_running_workout_encodes_heart_rate_percent_ranges_as_percent_fields():
+@pytest.mark.parametrize(
+    ("intensity_type", "expected_hr_type"),
+    [
+        ("heart_rate_percent_max", 1),
+        ("heart_rate_percent_reserve", 2),
+        ("heart_rate_percent_lthr", 3),
+    ],
+)
+def test_compile_running_workout_encodes_heart_rate_percent_ranges_as_percent_fields(
+    intensity_type, expected_hr_type
+):
     workout = normalize_running_workout(
         {
             "name": "HR percent run",
@@ -173,7 +183,7 @@ def test_compile_running_workout_encodes_heart_rate_percent_ranges_as_percent_fi
                     "action": "work",
                     "target": {"type": "time", "value": 30, "unit": "min"},
                     "intensity": {
-                        "type": "heart_rate_percent_max",
+                        "type": intensity_type,
                         "range": {"low": 75, "high": 85},
                     },
                 }
@@ -183,7 +193,7 @@ def test_compile_running_workout_encodes_heart_rate_percent_ranges_as_percent_fi
 
     exercise = compile_running_workout(workout)["exercises"][0]
 
-    assert exercise["hrType"] == 2
+    assert exercise["hrType"] == expected_hr_type
     assert exercise["intensityType"] == 2
     assert exercise["isIntensityPercent"] is True
     assert exercise["intensityPercent"] == 75_000
@@ -250,10 +260,59 @@ def test_compile_running_workout_sets_default_percent_fields_for_absolute_intens
     assert exercise["intensityValueExtend"] == 255000
 
 
-def test_compile_running_workout_rejects_unsupported_effort_pace_semantics():
+def test_compile_running_workout_supports_training_load_target():
     workout = normalize_running_workout(
         {
-            "name": "Effort pace test",
+            "name": "Load target",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "training_load", "value": 100},
+                    "intensity": {"type": "none"},
+                }
+            ],
+        }
+    )
+
+    exercise = compile_running_workout(workout)["exercises"][0]
+
+    assert exercise["targetType"] == 6
+    assert exercise["targetValue"] == 100
+
+
+@pytest.mark.parametrize(
+    ("target", "message"),
+    [
+        ({"type": "training_load", "value": 100.9}, "training_load.*integer|integer.*training_load"),
+        ({"type": "training_load", "value": True}, "training_load.*integer|integer.*training_load"),
+    ],
+)
+def test_compile_running_workout_rejects_non_integer_training_load_targets(target, message):
+    workout = normalize_running_workout(
+        {
+            "name": "Invalid load target",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": target,
+                    "intensity": {"type": "none"},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
+        compile_running_workout(workout)
+
+
+def test_compile_running_workout_supports_effort_pace_percent_threshold():
+    workout = normalize_running_workout(
+        {
+            "name": "Effort pace threshold test",
             "happen_day": "20260715",
             "steps": [
                 {
@@ -269,11 +328,17 @@ def test_compile_running_workout_rejects_unsupported_effort_pace_semantics():
         }
     )
 
-    with pytest.raises(ValueError, match="effort_pace_percent_threshold"):
-        compile_running_workout(workout)
+    exercise = compile_running_workout(workout)["exercises"][0]
+
+    assert exercise["intensityType"] == 8
+    assert exercise["isIntensityPercent"] is True
+    assert exercise["intensityPercent"] == 95_000
+    assert exercise["intensityPercentExtend"] == 100_000
+    assert exercise["intensityValue"] == 0
+    assert exercise["intensityValueExtend"] == 0
 
 
-def test_compile_running_workout_keeps_effort_pace_unsupported_before_open_ended_guard():
+def test_compile_running_workout_supports_effort_pace_absolute_range():
     workout = normalize_running_workout(
         {
             "name": "Effort pace direct test",
@@ -282,23 +347,24 @@ def test_compile_running_workout_keeps_effort_pace_unsupported_before_open_ended
                 {
                     "kind": "step",
                     "action": "work",
-                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "target": {"type": "open"},
                     "intensity": {
                         "type": "effort_pace",
-                        "range": {"low": 4.0},
+                        "range": {"low": 300000, "high": 360000},
                     },
                 }
             ],
         }
     )
 
-    with pytest.raises(ValueError) as exc_info:
-        compile_running_workout(workout)
+    exercise = compile_running_workout(workout)["exercises"][0]
 
-    message = str(exc_info.value)
-    assert "effort_pace" in message
-    assert "not yet supported" in message
-    assert "open-ended" not in message
+    assert exercise["targetType"] == 1
+    assert exercise["targetValue"] == 0
+    assert exercise["intensityType"] == 8
+    assert exercise["isIntensityPercent"] is False
+    assert exercise["intensityValue"] == 300000
+    assert exercise["intensityValueExtend"] == 360000
 
 
 def test_compile_rejects_open_ended_direct_range_until_supported():
@@ -314,6 +380,29 @@ def test_compile_rejects_open_ended_direct_range_until_supported():
                     "intensity": {
                         "type": "pace",
                         "range": {"low": 4.0},
+                    },
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="open-ended"):
+        compile_running_workout(workout)
+
+
+def test_compile_rejects_open_ended_effort_pace_range_until_supported():
+    workout = normalize_running_workout(
+        {
+            "name": "Open-ended effort pace test",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "open"},
+                    "intensity": {
+                        "type": "effort_pace",
+                        "range": {"low": 300000},
                     },
                 }
             ],

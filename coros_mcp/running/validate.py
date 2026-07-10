@@ -36,6 +36,10 @@ def _is_numeric(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _is_integer(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _validate_bounded_pair(low, high, label: str) -> None:
     if low is None or high is None:
         raise ValueError(f"{label} requires both low and high values")
@@ -65,8 +69,6 @@ def _validate_step(step) -> None:
         raise ValueError(f"unsupported target type: {step.target.type!r}")
     if step.intensity.type not in _VALID_INTENSITY_TYPES:
         raise ValueError(f"unsupported intensity type: {step.intensity.type!r}")
-    if step.target.type == "training_load":
-        raise ValueError("training_load target is not yet supported")
 
     if step.target.type == "open":
         if step.target.value is not None:
@@ -78,6 +80,10 @@ def _validate_step(step) -> None:
             raise ValueError(f"{step.target.type} target requires value")
         if step.target.type in {"distance", "time"} and not _is_numeric(step.target.value):
             raise ValueError(f"{step.target.type} target requires numeric value")
+        if step.target.type == "training_load" and not _is_integer(step.target.value):
+            raise ValueError("training_load target requires integer value")
+        if step.target.type == "training_load" and step.target.unit is not None:
+            raise ValueError("training_load target must not include unit")
         if step.target.type in {"distance", "time"} and not is_supported_target_unit(
             step.target.type, step.target.unit
         ):

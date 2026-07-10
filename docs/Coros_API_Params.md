@@ -2,6 +2,8 @@
 
 > 来源：逆向分析用户创建的校准课程（"这是我设置的校准课程"，2026-07-14）
 > 和 Coros 官方的 Training Hub API 响应。
+>
+> 原始抓包样本保存在 [docs/exercises.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/exercises.md)。
 
 ---
 
@@ -63,8 +65,10 @@ step["exercise_type"] = 4  # 恢复（循环内慢跑恢复）
 
 | targetType | 含义 | targetValue 单位 | 示例 |
 |------------|------|-----------------|------|
+| `1` | 自由模式 / Open | 固定为 `0` | `targetValue=0` |
 | `2` | 时间 | **秒** | `targetValue=300` → 300 秒 = 5 分钟 |
 | `5` | 距离 | **厘米（cm）** | `targetValue=300000` → 300000 cm = 3000 m = 3 km |
+| `6` | 负荷（Training Load） | 整数 LT/TL 值 | `targetValue=100` → 100 LT |
 | `3` | 次数/组数 | 整数 | `targetValue=10` → 10 次 |
 
 **在 `_build_workout_program_payload` 中的映射：**
@@ -75,6 +79,12 @@ step["target_distance_m"] = 600   # → targetType=5, targetValue=60000
 
 # 时间型（分钟 → 秒）
 step["duration_minutes"] = 2.5    # → targetType=2, targetValue=150
+
+# 自由模式
+step["open_target"] = True        # → targetType=1, targetValue=0
+
+# 负荷目标
+step["training_load"] = 100       # → targetType=6, targetValue=100
 ```
 
 ---
@@ -86,6 +96,7 @@ step["duration_minutes"] = 2.5    # → targetType=2, targetValue=150
 | `0` | 无 | — | — |
 | `2` | 心率（BPM） | 原始 BPM 值 | **必须 = 0** |
 | `3` | 配速（秒/公里） | **intensityValue / intensityMultiplier = 秒/公里** | **必须 = 1000** |
+| `8` | 等强配速（Effort Pace） | **intensityValue / intensityMultiplier = 秒/公里** | **必须 = 1000** |
 
 ### 配速格式详解
 
@@ -134,16 +145,42 @@ intensityMultiplier = 0
 直接使用：146 BPM
 ```
 
+### 等强配速格式
+
+`intensityType=8` 与普通配速一样，仍然使用 `秒/公里 × 1000`：
+
+```
+intensityValue = 300000
+intensityMultiplier = 1000
+─────────────────────────
+intensityValue / intensityMultiplier = 300 秒/km = 5:00/km
+```
+
+区别在于语义：
+
+- `intensityType=3`：普通配速 / `%乳酸阈配速`
+- `intensityType=8`：等强配速 / `%等强阈值配速`
+
 ---
 
 ## intensityDisplayUnit
 
-| 值 | 含义 |
-|----|------|
-| `"1"` | 有配速或心率目标时使用 |
-| `"0"` | 无目标时使用 |
+**样本直接观察到的语义规律：**
 
-**规则：** `intensity_type in (2, 3)` → `"1"`，否则 `"0"`
+| 观察值 | 含义 |
+|--------|------|
+| `1` / `"1"` | 配速类 / 等强配速类强度展示 |
+| `0` / `"0"` | 无强度、心率类、步频类展示 |
+
+- `intensityType in (3, 8)` 时，样本里对应配速 / 等强配速展示
+- `intensityType == 2` 时，样本里对应心率 / 心率百分比展示
+- `intensityType in (0, 7)` 时，样本里对应无强度 / 步频展示
+- 样本本身同时出现过数字 `0/1` 和字符串 `"0"/"1"`，因此这里只能确认语义对应关系，不能仅从样本推出字段一定永远是字符串
+
+**当前 MCP 实现策略：**
+
+- 编译器固定输出字符串 `"1"`（配速 / 等强配速）和 `"0"`（无强度 / 心率 / 步频）
+- 这是一种稳定化输出策略，不等于样本对字段类型的直接证明
 
 ---
 
@@ -151,8 +188,15 @@ intensityMultiplier = 0
 
 | 值 | 含义 |
 |----|------|
-| `2` | 心率型目标（`intensityType=2`） |
 | `0` | 非心率型 |
+| `1` | `%最大心率` |
+| `2` | `%储备心率` |
+| `3` | `%乳酸阈心率` |
+
+**补充说明：**
+
+- `docs/exercises.md` 已直接证明 `1 / 2 / 3` 分别对应 `%最大心率 / %储备心率 / %乳酸阈心率`
+- 当前代码实现中，绝对心率 `heart_rate` 也沿用 `hrType=2`，但这属于实现策略，不是本样本文件单独证明出来的结论
 
 ---
 
@@ -191,7 +235,9 @@ Group (restType=0, restValue=30)    ← 每组间停顿30秒
 | `groupId` | `"0"` | 父节点的 `id`（字符串） |
 
 **父节点（Group）本身：**
-- `exerciseType=0`，`targetType=""`，`targetValue=0`
+- `exerciseType=0`
+- 当前实现里，纯结构组头使用 `targetType=0, targetValue=0`
+- 如果一轮间歇的 work/recovery 都是时间目标，当前实现会把组头汇总成 `targetType=2, targetValue=单轮总秒数`
 - `sets` = 循环次数（repeat）
 - `restType/restValue` = 组间休息
 
@@ -212,6 +258,31 @@ Group (restType=0, restValue=30)    ← 每组间停顿30秒
 | `isIntensityPercent` | 是否为百分比模式 |
 
 **注意：** 使用配速或心率绝对值时（`pace_low_ms` / `pace_high_ms`），这些字段填 0 即可。
+
+**已确认的组合：**
+
+- `%最大心率 / %储备心率 / %乳酸阈心率`
+  - `intensityType=2`
+  - `isIntensityPercent=true`
+  - `intensityPercent / intensityPercentExtend` 填百分比
+  - 原始样本中 `intensityValue / intensityValueExtend` 会同时出现系统换算后的 BPM
+  - 当前 MCP 实现为了避免引入用户阈值依赖，统一写 `0`
+- `%乳酸阈配速`
+  - `intensityType=3`
+  - `isIntensityPercent=true`
+  - `intensityPercent / intensityPercentExtend` 填百分比
+  - 原始样本中 `intensityValue / intensityValueExtend` 会同时出现系统换算后的 sec/km
+  - 当前 MCP 实现统一写 `0`
+- `%等强阈值配速`
+  - `intensityType=8`
+  - `isIntensityPercent=true`
+  - `intensityPercent / intensityPercentExtend` 填百分比
+  - 原始样本中 `intensityValue / intensityValueExtend` 会同时出现系统换算后的 sec/km
+  - 当前 MCP 实现统一写 `0`
+- `等强配速`
+  - `intensityType=8`
+  - `isIntensityPercent=false`
+  - `intensityValue / intensityValueExtend` 直接存 sec/km × 1000
 
 ---
 

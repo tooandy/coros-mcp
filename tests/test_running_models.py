@@ -184,7 +184,35 @@ def test_validate_rejects_percent_intensity_without_range_or_zone():
         validate_running_workout(workout)
 
 
-def test_validate_rejects_training_load_until_supported():
+def test_validate_accepts_training_load_target_with_numeric_value():
+    workout = normalize_running_workout(
+        {
+            "name": "Load target",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "training_load", "value": 100},
+                    "intensity": {"type": "none"},
+                }
+            ],
+        }
+    )
+
+    validate_running_workout(workout)
+
+
+@pytest.mark.parametrize(
+    ("target", "message"),
+    [
+        ({"type": "training_load", "value": "100"}, "training_load.*integer|integer.*training_load"),
+        ({"type": "training_load", "value": 100.9}, "training_load.*integer|integer.*training_load"),
+        ({"type": "training_load", "value": True}, "training_load.*integer|integer.*training_load"),
+        ({"type": "training_load", "value": 100, "unit": "tss"}, "training_load.*unit|unit.*training_load"),
+    ],
+)
+def test_validate_rejects_invalid_training_load_target_shapes(target, message):
     workout = normalize_running_workout(
         {
             "name": "Broken",
@@ -193,14 +221,14 @@ def test_validate_rejects_training_load_until_supported():
                 {
                     "kind": "step",
                     "action": "work",
-                    "target": {"type": "training_load", "value": "100"},
+                    "target": target,
                     "intensity": {"type": "none"},
                 }
             ],
         }
     )
 
-    with pytest.raises(ValueError, match="training_load.*unsupported|unsupported.*training_load|not yet supported"):
+    with pytest.raises(ValueError, match=message):
         validate_running_workout(workout)
 
 
@@ -436,7 +464,7 @@ def test_validate_rejects_invalid_percent_zone_preset_or_family(intensity, messa
         ({"type": "distance", "value": 1000}, "unit"),
         ({"type": "time", "unit": "min"}, "value"),
         ({"type": "time", "value": 20}, "unit"),
-        ({"type": "training_load", "unit": "tss"}, "unsupported|not yet supported"),
+        ({"type": "training_load", "unit": "tss"}, "value"),
     ],
 )
 def test_validate_rejects_missing_required_target_fields(target, message):
