@@ -56,6 +56,8 @@ def test_compile_running_workout_builds_group_and_overview():
 
     group, work, recovery = program["exercises"][1:4]
     assert group["isGroup"] is True
+    assert group["targetType"] == 0
+    assert group["targetValue"] == 0
     assert work["groupId"] == str(group["id"])
     assert recovery["groupId"] == str(group["id"])
     assert work["exerciseType"] == 2
@@ -99,6 +101,40 @@ def test_compile_running_workout_uses_interval_round_duration_for_time_groups():
     assert recovery["targetValue"] == 60
     assert work["exerciseType"] == 2
     assert recovery["exerciseType"] == 2
+
+
+def test_compile_running_workout_uses_structural_header_for_open_interval_groups():
+    workout = normalize_running_workout(
+        {
+            "name": "Open recoveries",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "interval",
+                    "repeat": 5,
+                    "work": {
+                        "action": "work",
+                        "target": {"type": "time", "value": 90, "unit": "sec"},
+                        "intensity": {"type": "none"},
+                    },
+                    "recovery": {
+                        "action": "recovery",
+                        "target": {"type": "open"},
+                        "intensity": {"type": "none"},
+                    },
+                }
+            ],
+        }
+    )
+
+    program = compile_running_workout(workout)
+
+    group, work, recovery = program["exercises"]
+    assert group["isGroup"] is True
+    assert group["targetType"] == 0
+    assert group["targetValue"] == 0
+    assert work["targetType"] == 2
+    assert recovery["targetType"] == 0
 
 
 def test_compile_running_workout_sets_program_hrtype_for_hr_semantics():

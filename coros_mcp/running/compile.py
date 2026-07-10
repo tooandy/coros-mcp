@@ -125,12 +125,15 @@ def _compile_interval_group_target(interval: IntervalNode) -> tuple[int, int]:
     work_target_type, work_target_value, work_display_unit = _compile_target(interval.work.target)
     recovery_target_type, recovery_target_value, recovery_display_unit = _compile_target(interval.recovery.target)
 
-    if work_target_type == 0 or recovery_target_type == 0:
-        raise ValueError("interval group target cannot be derived from open targets")
-    if work_target_type != recovery_target_type or work_display_unit != recovery_display_unit:
-        raise ValueError("interval group target requires matching work/recovery target types")
+    if (
+        work_target_type == 2
+        and recovery_target_type == 2
+        and work_display_unit == 0
+        and recovery_display_unit == 0
+    ):
+        return 2, work_target_value + recovery_target_value
 
-    return work_target_type, work_target_value + recovery_target_value
+    return 0, 0
 
 
 def _base_exercise(step: StepNode, exercise_id: int, exercise_type: int, sort_no: int, group_id: str) -> tuple[dict, int]:
