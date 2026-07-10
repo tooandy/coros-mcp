@@ -109,3 +109,33 @@ Result:
 
 - `effort_pace` and `effort_pace_percent_threshold` remain intentionally unsupported in compilation.
 - Interval group header target currently mirrors the interval work target, which matches the brief’s minimal shape but may need revisiting in a later task if COROS group rows need richer semantics for distance/open mixes.
+
+## Follow-up Fix: Program-Level HR Metadata
+
+### What Changed
+
+- Updated `coros_mcp/running/compile.py` so program-level `referExercise.hrType` is derived from the workout's intensity semantics instead of being fixed at `0`.
+- The compiler now emits `referExercise.hrType = 3` when the workout contains HR-based running intensity (`heart_rate` / percent-HR variants), matching the existing running payload contract used elsewhere in the repo.
+- Added a focused regression test in `tests/test_running_compile.py` that compiles an HR-based running workout and asserts:
+  - step-level `hrType == 2`
+  - program-level `referExercise.hrType == 3`
+- Also pinned the non-HR compilation path in the existing group/overview test to keep the `0` case explicit.
+
+### Verification
+
+Ran the relevant tests after the change:
+
+```bash
+./.venv/bin/pytest tests/test_running_compile.py -v
+./.venv/bin/pytest tests/test_running_compile.py tests/test_workout_payloads.py -k 'running_hr_intensity_marks_hr_type or running_non_hr_intensity_emits_hr_type_zero or running_emits_structured_workout_metadata' -v
+```
+
+Results:
+
+- `tests/test_running_compile.py`: `4 passed`
+- Targeted running payload contract tests: `6 passed, 52 deselected`
+
+### Scope Check
+
+- No broader compile semantics were changed.
+- Existing non-HR `referExercise.hrType == 0` behavior remains intact.

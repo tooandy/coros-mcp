@@ -50,6 +50,7 @@ def test_compile_running_workout_builds_group_and_overview():
     assert program["overview"] == "Threshold repeats"
     assert program["subType"] == 65535
     assert program["duration"] == 25 * 60
+    assert program["referExercise"]["hrType"] == 0
     assert len(program["exercises"]) == 5
     assert [ex["exerciseType"] for ex in program["exercises"]] == [1, 0, 2, 4, 3]
 
@@ -60,6 +61,28 @@ def test_compile_running_workout_builds_group_and_overview():
     assert work["intensityType"] == 3
     assert work["intensityValue"] == 100
     assert work["intensityValueExtend"] == 105
+
+
+def test_compile_running_workout_sets_program_hrtype_for_hr_semantics():
+    workout = normalize_running_workout(
+        {
+            "name": "HR run",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 30, "unit": "min"},
+                    "intensity": {"type": "heart_rate", "range": {"low": 140, "high": 150}},
+                }
+            ],
+        }
+    )
+
+    program = compile_running_workout(workout)
+
+    assert program["exercises"][0]["hrType"] == 2
+    assert program["referExercise"]["hrType"] == 3
 
 
 def test_compile_running_workout_rejects_training_load_until_supported():

@@ -17,6 +17,8 @@ _HR_PERCENT_INTENSITY_TYPES = {
     "heart_rate_percent_lthr",
 }
 
+_HR_INTENSITY_TYPES = _HR_PERCENT_INTENSITY_TYPES | {"heart_rate"}
+
 _UNSUPPORTED_INTENSITY_TYPES = {
     "effort_pace",
     "effort_pace_percent_threshold",
@@ -104,6 +106,19 @@ def _compile_intensity(intensity: IntensitySpec) -> dict:
         }
 
     raise ValueError(f"intensity type {intensity.type!r} is not yet supported by the COROS compiler")
+
+
+def _refer_exercise_hr_type(workout: RunningWorkout) -> int:
+    def _step_uses_hr(intensity: IntensitySpec) -> bool:
+        return intensity.type in _HR_INTENSITY_TYPES
+
+    for node in workout.steps:
+        if isinstance(node, IntervalNode):
+            if _step_uses_hr(node.work.intensity) or _step_uses_hr(node.recovery.intensity):
+                return 3
+        elif _step_uses_hr(node.intensity):
+            return 3
+    return 0
 
 
 def _base_exercise(step: StepNode, exercise_id: int, exercise_type: int, sort_no: int, group_id: str) -> tuple[dict, int]:
@@ -224,7 +239,7 @@ def compile_running_workout(workout: RunningWorkout) -> dict:
         "poolLengthUnit": 0,
         "referExercise": {
             "gradeSystem": 0,
-            "hrType": 0,
+            "hrType": _refer_exercise_hr_type(workout),
             "intensityType": 0,
             "valueType": 1,
         },
