@@ -297,6 +297,26 @@ def test_validate_rejects_non_numeric_or_reversed_percent_bounds(intensity, mess
         validate_running_workout(workout)
 
 
+def test_validate_rejects_reversed_direct_numeric_bounds():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {"type": "pace", "range": {"low": 4.5, "high": 4.0}},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="high.*low|low.*high"):
+        validate_running_workout(workout)
+
+
 @pytest.mark.parametrize(
     ("target", "message"),
     [
@@ -425,3 +445,30 @@ def test_validate_rejects_unknown_enum_values(step, message):
 
     with pytest.raises(ValueError, match=message):
         validate_running_workout(workout)
+
+
+@pytest.mark.parametrize("repeat", [1.9, True, "4"])
+def test_normalize_rejects_non_integer_interval_repeat(repeat):
+    with pytest.raises(ValueError, match="repeat"):
+        normalize_running_workout(
+            {
+                "name": "Broken",
+                "happen_day": "20260715",
+                "steps": [
+                    {
+                        "kind": "interval",
+                        "repeat": repeat,
+                        "work": {
+                            "action": "work",
+                            "target": {"type": "time", "value": 20, "unit": "min"},
+                            "intensity": {"type": "none"},
+                        },
+                        "recovery": {
+                            "action": "recovery",
+                            "target": {"type": "time", "value": 5, "unit": "min"},
+                            "intensity": {"type": "none"},
+                        },
+                    }
+                ],
+            }
+        )

@@ -84,6 +84,13 @@ def _validate_step(step) -> None:
             raise ValueError(f"{step.intensity.type} intensity range.low must be numeric")
         if step.intensity.range.high is not None and not _is_numeric(step.intensity.range.high):
             raise ValueError(f"{step.intensity.type} intensity range.high must be numeric")
+        if (
+            step.intensity.range.high is not None
+            and _is_numeric(step.intensity.range.low)
+            and _is_numeric(step.intensity.range.high)
+            and step.intensity.range.high < step.intensity.range.low
+        ):
+            raise ValueError(f"{step.intensity.type} intensity range.high must be >= range.low")
         return
     if step.intensity.zone and step.intensity.type not in _ZONE_ALLOWED_INTENSITY_TYPES:
         raise ValueError("zone is only supported for percent-based intensity types")

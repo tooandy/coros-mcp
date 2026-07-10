@@ -167,3 +167,27 @@ cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_runn
 ```
 
 Result: 28 passed
+
+## Review Fixes Round 6
+
+Addressed the last two review findings without broadening scope:
+
+- direct numeric intensity `range` now validates `high >= low` explicitly instead of only checking numeric shape
+- `interval.repeat` now rejects non-integer inputs during normalization instead of silently truncating via `int()`
+
+### Additional Regression Coverage
+
+Added tests to cover:
+
+- reversed direct numeric intensity bounds
+- non-integer interval repeat inputs, including float, boolean, and string values
+
+### Verification
+
+Ran the task-specific test file after the fix:
+
+```bash
+cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_running_models.py -q
+```
+
+Result: 32 passed

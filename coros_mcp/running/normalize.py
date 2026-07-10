@@ -11,6 +11,12 @@ from coros_mcp.running.models import (
 )
 
 
+def _normalize_interval_repeat(value) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"interval repeat must be an integer, got {value!r}")
+    return value
+
+
 def _normalize_intensity(payload: dict) -> IntensitySpec:
     range_payload = payload.get("range")
     zone_payload = payload.get("zone")
@@ -41,7 +47,7 @@ def normalize_running_workout(payload: dict) -> RunningWorkout:
             steps.append(
                 IntervalNode(
                     kind="interval",
-                    repeat=int(step["repeat"]),
+                    repeat=_normalize_interval_repeat(step["repeat"]),
                     work=_normalize_step(step["work"]),
                     recovery=_normalize_step(step["recovery"]),
                 )
