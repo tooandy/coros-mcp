@@ -49,6 +49,7 @@ Ask your AI assistant questions like:
 | `delete_workout_template` | Delete a saved workout template from the library |
 | `list_planned_activities` | List planned workouts from the Coros training calendar |
 | `schedule_workout` | Schedule a one-off cycling/intervals workout for a date (no library entry) |
+| `schedule_running_workout` | Schedule a one-off semantic running workout for a date (no library entry) |
 | `schedule_strength_workout` | Schedule a one-off strength workout for a date (no library entry) |
 | `schedule_workout_template` | Schedule an existing library template on a calendar day |
 | `remove_scheduled_workout` | Remove a scheduled workout from the calendar |
@@ -413,6 +414,49 @@ Same parameters as [`save_workout_template`](#save_workout_template), plus `happ
 ```
 
 Returns: `scheduled`, `name`, `happen_day`, `total_minutes`, `steps_count`, `response`
+
+### `schedule_running_workout`
+
+Schedule a **one-off** semantic running workout for a specific date. The tool normalizes, validates, compiles, and then posts the final inline program straight to the Coros calendar, without creating a reusable library entry.
+
+Pass `render_preview: true` if you want the response to include a human-readable `rendered_summary` alongside the scheduling result.
+
+```json
+{
+  "name": "4x1km LT",
+  "description": "Threshold repeats",
+  "happen_day": "20260312",
+  "sort_no": 2,
+  "render_preview": true,
+  "steps": [
+    {
+      "kind": "step",
+      "action": "warmup",
+      "target": {"type": "time", "value": 15, "unit": "min"},
+      "intensity": {"type": "none"}
+    },
+    {
+      "kind": "interval",
+      "repeat": 4,
+      "work": {
+        "action": "work",
+        "target": {"type": "distance", "value": 1000, "unit": "m"},
+        "intensity": {
+          "type": "pace_percent_lthr",
+          "zone": {"preset": "lactate_threshold_zone"}
+        }
+      },
+      "recovery": {
+        "action": "recovery",
+        "target": {"type": "distance", "value": 400, "unit": "m"},
+        "intensity": {"type": "none"}
+      }
+    }
+  ]
+}
+```
+
+Returns: `scheduled`, `name`, `happen_day`, `description`, `response`, and optionally `rendered_summary`
 
 ### `schedule_strength_workout`
 

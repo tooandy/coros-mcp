@@ -37,6 +37,8 @@ from coros_mcp.cache.sync import (
 )
 from coros_mcp.cache.utils import LOCAL_TZ, fmt_local_time
 from coros_mcp.coros_api import TOKEN_TTL_MS
+from coros_mcp.running import compile_running_workout, normalize_running_workout, validate_running_workout
+from coros_mcp.running.render import render_running_workout
 
 load_dotenv()
 init_db()
@@ -148,6 +150,7 @@ async def get_help() -> dict:
             {"name": "list_planned_activities_raw", "description": "List raw scheduled workouts for calendar update workflows"},  # noqa: E501
             {"name": "calculate_workout_program", "description": "Recalculate edited workout program metrics before updating"},  # noqa: E501
             {"name": "schedule_workout", "description": "Schedule a one-off cycling/intervals/running workout for a date (no library entry)"},  # noqa: E501
+            {"name": "schedule_running_workout", "description": "Schedule a one-off semantic running workout for a date via the inline calendar path"},  # noqa: E501
             {"name": "add_planned_workout", "description": "Add an inline planned workout to the training calendar from raw objects"},  # noqa: E501
             {"name": "update_scheduled_workout", "description": "Update an existing scheduled workout on the calendar"},  # noqa: E501
             {"name": "schedule_strength_workout", "description": "Schedule a one-off strength workout for a date (no library entry)"},  # noqa: E501
@@ -989,6 +992,90 @@ async def schedule_workout_template(
         )
     except Exception as exc:
         return {"error": str(exc), "scheduled": False}
+
+
+# ---------------------------------------------------------------------------
+# Tool: schedule_running_workout (inline, one-off semantic running)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def schedule_running_workout(
+    name: str,
+    steps: list[dict],
+    happen_day: str,
+    description: str = "",
+    sort_no: int = 1,
+    render_preview: bool = False,
+    strict: bool = True,
+) -> dict:
+    """
+    Schedule a ONE-OFF semantic running workout for a specific date.
+
+    This tool accepts the structured running-workout shape validated by the
+    running domain layer, then compiles and schedules it through the existing
+    inline calendar path. It does NOT save a reusable library template.
+
+    Parameters
+    ----------
+    name : str
+        Workout name as it should appear on the calendar.
+    steps : list[dict]
+        Structured running steps accepted by normalize_running_workout.
+    happen_day : str
+        Date in YYYYMMDD format.
+    description : str
+        Free-text notes written into the workout overview.
+    sort_no : int
+        Order within the day (default 1).
+    render_preview : bool
+        When True, include a human-readable rendered_summary in the result.
+    strict : bool
+        Reserved for future validation modes. Invalid input still returns a
+        failure payload regardless of this flag's value.
+    """
+    auth = await _get_auth()
+    if auth is None:
+        return {"error": _NOT_AUTHENTICATED, "scheduled": False}
+
+    try:
+        workout = normalize_running_workout(
+            {
+                "name": name,
+                "steps": steps,
+                "happen_day": happen_day,
+                "description": description,
+            }
+        )
+        validate_running_workout(workout)
+        program = compile_running_workout(workout)
+        response = await _run_with_auth(
+            coros_api._post_schedule_inline,
+            auth,
+            program,
+            happen_day,
+            sort_no,
+            retry_all=False,
+        )
+        result = _attach_enrichment_warning(
+            {
+                "scheduled": True,
+                "name": name,
+                "happen_day": happen_day,
+                "description": description,
+                "strict": strict,
+                "response": response,
+            },
+            response,
+        )
+        if render_preview:
+            result["rendered_summary"] = render_running_workout(workout)
+        return result
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "scheduled": False,
+            "strict": strict,
+        }
 
 
 # ---------------------------------------------------------------------------
