@@ -164,6 +164,121 @@ def test_validate_rejects_percent_intensity_without_range_or_zone():
         validate_running_workout(workout)
 
 
+def test_validate_rejects_non_numeric_training_load_value():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "training_load", "value": "100"},
+                    "intensity": {"type": "none"},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="training_load.*numeric|numeric.*training_load"):
+        validate_running_workout(workout)
+
+
+def test_validate_rejects_direct_numeric_intensity_without_range():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {"type": "heart_rate"},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="heart_rate.*range|range.*heart_rate"):
+        validate_running_workout(workout)
+
+
+def test_validate_rejects_direct_numeric_intensity_without_range_low():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {"type": "pace", "range": {"low": None, "high": 4.5}},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="range.low"):
+        validate_running_workout(workout)
+
+
+@pytest.mark.parametrize(
+    ("target", "message"),
+    [
+        ({"type": "distance", "value": 1000, "unit": "km"}, "unsupported unit|supported unit"),
+        ({"type": "time", "value": 20, "unit": "sec"}, "unsupported unit|supported unit"),
+    ],
+)
+def test_validate_rejects_unsupported_distance_and_time_units(target, message):
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": target,
+                    "intensity": {"type": "none"},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
+        validate_running_workout(workout)
+
+
+@pytest.mark.parametrize(
+    ("intensity", "message"),
+    [
+        ({"type": "heart_rate_percent_max", "zone": {"preset": "not_real_zone"}}, "preset"),
+        ({"type": "heart_rate_percent_max", "zone": {"preset": "aerobic_power_zone"}}, "heart_rate_percent_max"),
+        ({"type": "pace_percent_lthr", "zone": {"preset": "warmup_zone"}}, "pace_percent_lthr"),
+    ],
+)
+def test_validate_rejects_invalid_percent_zone_preset_or_family(intensity, message):
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": intensity,
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
+        validate_running_workout(workout)
+
+
 @pytest.mark.parametrize(
     ("target", "message"),
     [

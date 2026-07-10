@@ -86,3 +86,32 @@ cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_runn
 ```
 
 Result: 12 passed
+
+## Review Fixes Round 3
+
+Addressed the final four review findings without expanding scope:
+
+- `training_load` targets now require a numeric `value`; string-like values are rejected.
+- Direct numeric intensity types (`heart_rate`, `pace`, `power`, `cadence`, `effort_pace`) now require `range`, and `range.low` must be present and numeric.
+- `distance` and `time` targets now validate `unit` against the current supported set instead of accepting any non-empty string.
+- `%`-based intensity presets now validate against the correct family for each intensity type; invalid presets and mismatched families are rejected.
+
+### Additional Regression Coverage
+
+Added tests to cover:
+
+- non-numeric `training_load.value`
+- direct numeric intensity without `range`
+- direct numeric intensity with `range.low = null`
+- unsupported `distance` and `time` units
+- invalid percent intensity presets and family mismatches
+
+### Verification
+
+Ran the task-specific test file after the final hardening pass:
+
+```bash
+cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_running_models.py -v
+```
+
+Result: 20 passed
