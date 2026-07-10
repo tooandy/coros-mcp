@@ -215,3 +215,27 @@ cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_runn
 ```
 
 Result: 32 passed
+
+## Review Fixes Round 8
+
+Addressed the final two review findings without broadening scope:
+
+- direct numeric intensity types now require a complete `range` with both `low` and `high` present at validation time
+- `open` targets now reject `unit` explicitly, since it carries no semantic meaning for the open target type
+
+### Additional Regression Coverage
+
+Added tests to cover:
+
+- direct numeric intensity with only one side of `range`
+- `open` targets that include `unit`
+
+### Verification
+
+Ran the task-specific test file after the fix:
+
+```bash
+cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_running_models.py -v
+```
+
+Result: 34 passed

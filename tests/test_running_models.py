@@ -82,6 +82,26 @@ def test_validate_open_target_rejects_value():
         validate_running_workout(workout)
 
 
+def test_validate_open_target_rejects_unit():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "cooldown",
+                    "target": {"type": "open", "unit": "min"},
+                    "intensity": {"type": "none"},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="open.*unit|unit.*open"):
+        validate_running_workout(workout)
+
+
 def test_normalize_rejects_unknown_step_kind():
     with pytest.raises(ValueError, match="kind"):
         normalize_running_workout(
@@ -247,7 +267,27 @@ def test_validate_rejects_direct_numeric_intensity_without_range_low():
         }
     )
 
-    with pytest.raises(ValueError, match="range.low"):
+    with pytest.raises(ValueError, match="both low and high|low and high"):
+        validate_running_workout(workout)
+
+
+def test_validate_rejects_direct_numeric_intensity_with_single_side_range():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {"type": "pace", "range": {"low": 4.0}},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="both low and high|low and high"):
         validate_running_workout(workout)
 
 
