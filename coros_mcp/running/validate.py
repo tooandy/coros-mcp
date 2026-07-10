@@ -12,12 +12,21 @@ _ZONE_ALLOWED_INTENSITY_TYPES = {
 
 
 def _validate_step(step) -> None:
-    if step.target.type == "open" and step.target.value is not None:
-        raise ValueError("open target must not include value")
+    if step.target.type == "open":
+        if step.target.value is not None:
+            raise ValueError("open target must not include value")
+    else:
+        if step.target.value is None:
+            raise ValueError(f"{step.target.type} target requires value")
+        if step.target.type in {"distance", "time"} and step.target.unit is None:
+            raise ValueError(f"{step.target.type} target requires unit")
+
     if step.intensity.type == "none" and (step.intensity.range or step.intensity.zone):
         raise ValueError("none intensity must not include range or zone")
     if step.intensity.range and step.intensity.zone:
         raise ValueError("intensity.range and intensity.zone are mutually exclusive")
+    if step.intensity.type in _ZONE_ALLOWED_INTENSITY_TYPES and not step.intensity.range and not step.intensity.zone:
+        raise ValueError("percent-based intensity types require range or zone")
     if step.intensity.zone and step.intensity.type not in _ZONE_ALLOWED_INTENSITY_TYPES:
         raise ValueError("zone is only supported for percent-based intensity types")
     if step.intensity.zone and step.intensity.zone.preset == "custom":

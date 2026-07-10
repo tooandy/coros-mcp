@@ -60,3 +60,29 @@ cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_runn
 ```
 
 Result: 6 passed
+
+## Review Fixes Round 2
+
+Addressed the two remaining review findings without expanding scope:
+
+- `validate_running_workout()` now rejects percent-based intensity types when both `range` and `zone` are absent.
+- `validate_running_workout()` now rejects missing `value` for non-`open` targets.
+- `validate_running_workout()` now rejects missing `unit` for `distance` and `time` targets.
+- `validate_running_workout()` now requires a numeric `value` for `training_load` targets.
+
+### Additional Regression Coverage
+
+Added tests to cover:
+
+- percent-based intensity types without `range` or `zone`
+- missing required `value` / `unit` fields on non-`open` targets
+
+### Verification
+
+Ran the task-specific test file after the second fix:
+
+```bash
+cd /Users/aniss/Documents/Marathon/coros-mcp && .venv/bin/pytest tests/test_running_models.py -q
+```
+
+Result: 12 passed

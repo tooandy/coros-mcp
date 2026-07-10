@@ -142,3 +142,53 @@ def test_validate_rejects_range_and_zone_together():
 
     with pytest.raises(ValueError, match="range.*zone|zone.*range"):
         validate_running_workout(workout)
+
+
+def test_validate_rejects_percent_intensity_without_range_or_zone():
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {"type": "heart_rate_percent_max"},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="range|zone"):
+        validate_running_workout(workout)
+
+
+@pytest.mark.parametrize(
+    ("target", "message"),
+    [
+        ({"type": "distance", "unit": "m"}, "value"),
+        ({"type": "distance", "value": 1000}, "unit"),
+        ({"type": "time", "unit": "min"}, "value"),
+        ({"type": "time", "value": 20}, "unit"),
+        ({"type": "training_load", "unit": "tss"}, "value"),
+    ],
+)
+def test_validate_rejects_missing_required_target_fields(target, message):
+    workout = normalize_running_workout(
+        {
+            "name": "Broken",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": target,
+                    "intensity": {"type": "none"},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
+        validate_running_workout(workout)
