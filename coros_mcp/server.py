@@ -1063,6 +1063,7 @@ async def schedule_running_workout(
                 "name": name,
                 "happen_day": happen_day,
                 "description": description,
+                "steps_count": len(program["exercises"]),
                 "strict": strict,
                 "response": response,
             },

@@ -18,12 +18,32 @@ _HR_PERCENT_INTENSITY_TYPES = {
     "heart_rate_percent_lthr",
 }
 
+_PACE_PERCENT_INTENSITY_TYPES = {
+    "pace_percent_lthr",
+}
+
 _HR_INTENSITY_TYPES = _HR_PERCENT_INTENSITY_TYPES | {"heart_rate"}
 
 _UNSUPPORTED_INTENSITY_TYPES = {
     "effort_pace",
     "effort_pace_percent_threshold",
 }
+
+
+def _default_intensity_percent_fields() -> dict:
+    return {
+        "isIntensityPercent": False,
+        "intensityPercent": 0,
+        "intensityPercentExtend": 0,
+    }
+
+
+def _percent_intensity_fields(low: int | float, high: int | float) -> dict:
+    return {
+        "isIntensityPercent": True,
+        "intensityPercent": int(round(low * 1000)),
+        "intensityPercentExtend": int(round(high * 1000)),
+    }
 
 
 def _compile_target(target: TargetSpec) -> tuple[int, int, int]:
@@ -43,10 +63,12 @@ def _compile_intensity(intensity: IntensitySpec) -> dict:
             "hrType": 0,
             "intensityDisplayUnit": "0",
             "intensityMultiplier": 0,
+            "intensityPercent": 0,
             "intensityPercentExtend": 0,
             "intensityType": 0,
             "intensityValue": 0,
             "intensityValueExtend": 0,
+            "isIntensityPercent": False,
         }
     if intensity.type in _UNSUPPORTED_INTENSITY_TYPES:
         raise ValueError(
@@ -69,45 +91,65 @@ def _compile_intensity(intensity: IntensitySpec) -> dict:
     else:
         raise ValueError(f"intensity type {intensity.type!r} is missing range or zone")
 
-    if intensity.type in _HR_PERCENT_INTENSITY_TYPES or intensity.type == "heart_rate":
+    if intensity.type in _HR_PERCENT_INTENSITY_TYPES:
         return {
             "hrType": 2,
             "intensityDisplayUnit": "0",
             "intensityMultiplier": 0,
-            "intensityPercentExtend": 0,
+            "intensityType": 2,
+            "intensityValue": 0,
+            "intensityValueExtend": 0,
+            **_percent_intensity_fields(low, high),
+        }
+    if intensity.type == "heart_rate":
+        return {
+            "hrType": 2,
+            "intensityDisplayUnit": "0",
+            "intensityMultiplier": 0,
             "intensityType": 2,
             "intensityValue": low,
             "intensityValueExtend": high,
+            **_default_intensity_percent_fields(),
         }
-    if intensity.type == "pace_percent_lthr" or intensity.type == "pace":
+    if intensity.type in _PACE_PERCENT_INTENSITY_TYPES:
         return {
             "hrType": 0,
             "intensityDisplayUnit": "1",
             "intensityMultiplier": 1000,
-            "intensityPercentExtend": 0,
+            "intensityType": 3,
+            "intensityValue": 0,
+            "intensityValueExtend": 0,
+            **_percent_intensity_fields(low, high),
+        }
+    if intensity.type == "pace":
+        return {
+            "hrType": 0,
+            "intensityDisplayUnit": "1",
+            "intensityMultiplier": 1000,
             "intensityType": 3,
             "intensityValue": low,
             "intensityValueExtend": high,
+            **_default_intensity_percent_fields(),
         }
     if intensity.type == "power":
         return {
             "hrType": 0,
             "intensityDisplayUnit": "0",
             "intensityMultiplier": 0,
-            "intensityPercentExtend": 0,
             "intensityType": 6,
             "intensityValue": low,
             "intensityValueExtend": high,
+            **_default_intensity_percent_fields(),
         }
     if intensity.type == "cadence":
         return {
             "hrType": 0,
             "intensityDisplayUnit": "0",
             "intensityMultiplier": 0,
-            "intensityPercentExtend": 0,
             "intensityType": 7,
             "intensityValue": low,
             "intensityValueExtend": high,
+            **_default_intensity_percent_fields(),
         }
 
     raise ValueError(f"intensity type {intensity.type!r} is not yet supported by the COROS compiler")

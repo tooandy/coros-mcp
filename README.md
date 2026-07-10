@@ -456,7 +456,7 @@ Pass `render_preview: true` if you want the response to include a human-readable
 }
 ```
 
-Returns: `scheduled`, `name`, `happen_day`, `description`, `response`, and optionally `rendered_summary` and `warning`
+Returns: `scheduled`, `name`, `happen_day`, `description`, `steps_count`, `response`, and optionally `rendered_summary` and `warning`
 
 ### `schedule_strength_workout`
 

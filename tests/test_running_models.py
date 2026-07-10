@@ -184,7 +184,7 @@ def test_validate_rejects_percent_intensity_without_range_or_zone():
         validate_running_workout(workout)
 
 
-def test_validate_rejects_non_numeric_training_load_value():
+def test_validate_rejects_training_load_until_supported():
     workout = normalize_running_workout(
         {
             "name": "Broken",
@@ -200,7 +200,7 @@ def test_validate_rejects_non_numeric_training_load_value():
         }
     )
 
-    with pytest.raises(ValueError, match="training_load.*numeric|numeric.*training_load"):
+    with pytest.raises(ValueError, match="training_load.*unsupported|unsupported.*training_load|not yet supported"):
         validate_running_workout(workout)
 
 
@@ -436,7 +436,7 @@ def test_validate_rejects_invalid_percent_zone_preset_or_family(intensity, messa
         ({"type": "distance", "value": 1000}, "unit"),
         ({"type": "time", "unit": "min"}, "value"),
         ({"type": "time", "value": 20}, "unit"),
-        ({"type": "training_load", "unit": "tss"}, "value"),
+        ({"type": "training_load", "unit": "tss"}, "unsupported|not yet supported"),
     ],
 )
 def test_validate_rejects_missing_required_target_fields(target, message):

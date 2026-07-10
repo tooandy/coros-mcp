@@ -65,6 +65,8 @@ def _validate_step(step) -> None:
         raise ValueError(f"unsupported target type: {step.target.type!r}")
     if step.intensity.type not in _VALID_INTENSITY_TYPES:
         raise ValueError(f"unsupported intensity type: {step.intensity.type!r}")
+    if step.target.type == "training_load":
+        raise ValueError("training_load target is not yet supported")
 
     if step.target.type == "open":
         if step.target.value is not None:
@@ -76,8 +78,6 @@ def _validate_step(step) -> None:
             raise ValueError(f"{step.target.type} target requires value")
         if step.target.type in {"distance", "time"} and not _is_numeric(step.target.value):
             raise ValueError(f"{step.target.type} target requires numeric value")
-        if step.target.type == "training_load" and not _is_numeric(step.target.value):
-            raise ValueError("training_load target requires numeric value")
         if step.target.type in {"distance", "time"} and not is_supported_target_unit(
             step.target.type, step.target.unit
         ):

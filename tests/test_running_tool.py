@@ -78,6 +78,7 @@ async def test_schedule_running_workout_schedules_inline_and_renders_preview(mon
     assert captured["happen_day"] == "20260715"
     assert captured["sort_no"] == 3
     assert result["scheduled"] is True
+    assert result["steps_count"] == 4
     assert "Warmup 15 min" in result["rendered_summary"]
 
 
