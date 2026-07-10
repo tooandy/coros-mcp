@@ -282,7 +282,7 @@ Each entry includes: `id`, `name`, `sport_type`, `sport_name`, `estimated_time_s
 
 Save a reusable cycling/intervals workout **template** to the Coros library. The template appears in the Coros app and can be synced to the watch. Steps can be plain steps or repeat groups for intervals.
 
-> ⚠️ This persists to the library indefinitely. For a one-off workout for a specific date, use [`schedule_workout`](#schedule_workout) instead — it builds the workout inline and leaves no library entry.
+> ⚠️ This persists to the library indefinitely. For a one-off workout for a specific date, use [`schedule_workout`](#schedule_workout) for cycling/legacy interval shapes or [`schedule_running_workout`](#schedule_running_workout) for semantic running workouts instead — these build the workout inline and leave no library entry.
 
 **Plain steps:**
 
@@ -456,7 +456,7 @@ Pass `render_preview: true` if you want the response to include a human-readable
 }
 ```
 
-Returns: `scheduled`, `name`, `happen_day`, `description`, `response`, and optionally `rendered_summary`
+Returns: `scheduled`, `name`, `happen_day`, `description`, `response`, and optionally `rendered_summary` and `warning`
 
 ### `schedule_strength_workout`
 
@@ -483,7 +483,7 @@ Schedule an existing library template on a calendar day.
 { "workout_id": "1234567890", "happen_day": "20260312", "sort_no": 1 }
 ```
 
-The `workout_id` comes from `list_workout_templates`. For one-off workouts that don't need a library entry, use [`schedule_workout`](#schedule_workout) or [`schedule_strength_workout`](#schedule_strength_workout) instead.
+The `workout_id` comes from `list_workout_templates`. For one-off workouts that don't need a library entry, use [`schedule_workout`](#schedule_workout) for cycling/legacy interval shapes, [`schedule_running_workout`](#schedule_running_workout) for semantic running workouts, or [`schedule_strength_workout`](#schedule_strength_workout) for strength instead.
 
 Returns: `scheduled`, `workout_id`, `happen_day`, `response`
 

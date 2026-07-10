@@ -947,7 +947,8 @@ async def schedule_workout_template(
 
     Use this only when scheduling a previously-saved template by ID. For a
     one-off workout that doesn't need to live in the library, use the
-    inline tools instead: schedule_workout (cycling/intervals) or
+    inline tools instead: schedule_workout (cycling/legacy intervals),
+    schedule_running_workout (semantic running), or
     schedule_strength_workout (strength).
 
     Parameters
