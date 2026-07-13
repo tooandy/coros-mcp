@@ -1,134 +1,127 @@
-# Running Workout Read-Only MCP Tools Design
+# 跑步课表只读 MCP 工具设计
 
-## Summary
+## 摘要
 
-This design adds a small running-first read-only MCP surface on top of the
-existing semantic running domain layer in `coros-mcp`.
+本文档设计一组 running-first 的只读 MCP 工具，建立在 `coros-mcp` 现有跑步语义领域层之上。
 
-The goal is to make running workout authoring more agent-friendly before a
-workout is actually scheduled. Instead of forcing an agent to jump straight to
-`schedule_running_workout`, the MCP server should expose explicit tools for:
+目标是在真正下发课表之前，让跑步课表编写过程对 agent 更友好。现在 agent 如果想验证一个跑步课表，基本只能直接调用 `schedule_running_workout`。这轮要把当前已有的 running domain 能力显式暴露出来：
 
-- normalization + validation
-- human-readable rendering
-- payload compilation
-- combined preview
+- 标准化 + 校验
+- 人类可读摘要渲染
+- COROS payload 编译
+- 综合预览
 
-These tools are intentionally read-only:
+这些工具都应是只读工具：
 
-- no network calls
-- no auth requirement
-- no calendar writes
-- no library writes
+- 不触发网络请求
+- 不要求认证
+- 不写日历
+- 不写模板库
 
-They exist to close the authoring loop for MCP users and to prepare the code
-shape for a later CLI without duplicating running logic.
+它们的作用是补齐 MCP 编写闭环，同时为后续 CLI 复用同一套代码形态打基础，避免重复实现跑步逻辑。
 
-## Problem
+## 问题
 
-Today the running semantic model exists, but MCP callers only get one running
-entry point:
+当前跑步语义模型已经存在，但 MCP 调用者只有一个 running-first 入口：
 
 - `schedule_running_workout`
 
-That means an agent can only discover whether a running workout is valid by
-trying to schedule it. This creates several problems:
+这意味着 agent 只能通过“尝试下发”来确认课表是否合法。这会带来几个问题：
 
-- validation is not independently callable
-- payload compilation is not inspectable
-- rendering is not available without going through the scheduling tool
-- preview-style workflows are awkward
-- future CLI commands would have to expose concepts that MCP still hides
+- 校验能力不能单独调用
+- 编译后的 payload 不能单独查看
+- 摘要渲染必须绕到 scheduling 工具里才能拿到
+- preview 类工作流很别扭
+- 未来 CLI 需要暴露的概念，在 MCP 层仍然是隐藏的
 
-The problem is not missing running semantics in the domain layer. The problem is
-that MCP does not yet expose those semantics as a read-only workflow.
+问题不在于 domain 层缺少跑步语义，而在于 MCP 还没有把这些语义暴露成只读工作流。
 
-## Goals
+## 目标
 
-- Add running-first read-only MCP tools for validate, render, compile, and preview.
-- Reuse the existing `normalize -> validate -> render -> compile` running domain flow.
-- Keep scheduling behavior unchanged.
-- Return structured result objects instead of surfacing raw exceptions to the MCP caller.
-- Make `preview_running_workout` the preferred authoring/debugging entry point for agents.
-- Keep the design directly reusable for future CLI commands.
+- 新增 running-first 的只读 MCP 工具，覆盖 validate、render、compile、preview。
+- 复用现有 `normalize -> validate -> render -> compile` 跑步领域链路。
+- 保持现有下发行为不变。
+- 返回结构化结果，而不是让原始异常穿透 MCP 工具边界。
+- 将 `preview_running_workout` 作为 agent 编写和调试跑步课表时的首选入口。
+- 保持设计可直接迁移到后续 CLI 命令。
 
-## Non-Goals
+## 非目标
 
-- Changing the running semantic model itself
-- Adding authentication to read-only running tools
-- Scheduling or saving workouts from the new tools
-- Replacing `schedule_running_workout`
-- Implementing running template lifecycle in this phase
-- Redesigning running rendering beyond what the current renderer already supports
+- 不改变跑步语义模型本身。
+- 不给只读 running 工具增加认证要求。
+- 不在新工具里调度或保存课表。
+- 不替代 `schedule_running_workout`。
+- 不在本阶段实现 running template lifecycle。
+- 不重新设计当前 renderer 已支持之外的渲染能力。
 
-## User-Facing MCP Changes
+## 用户可见 MCP 变化
 
-Add four new MCP tools:
+新增 4 个 MCP 工具。
 
 ### `validate_running_workout`
 
-Purpose:
+用途：
 
-- normalize input
-- validate semantic correctness
-- return a structured success or failure result
+- 标准化输入
+- 校验语义正确性
+- 返回结构化成功或失败结果
 
-Expected use:
+典型场景：
 
-- agent checks whether a workout shape is acceptable before scheduling
-- human debugs invalid workout input
+- agent 在下发前检查课表结构是否合法
+- 人类调试非法 running workout 输入
 
 ### `render_running_workout`
 
-Purpose:
+用途：
 
-- normalize input
-- validate it
-- return the current human-readable summary string
+- 标准化输入
+- 校验输入
+- 返回当前人类可读摘要字符串
 
-Expected use:
+典型场景：
 
-- quick inspection by a user or agent
-- downstream use by skills that want a concise textual preview
+- 用户或 agent 快速检查课表内容
+- 后续 skill 需要一个简短文本预览
 
 ### `compile_running_workout`
 
-Purpose:
+用途：
 
-- normalize input
-- validate it
-- compile the final COROS inline program payload
+- 标准化输入
+- 校验输入
+- 编译最终 COROS inline program payload
 
-Expected use:
+典型场景：
 
-- compare semantic input with COROS wire output
-- inspect mappings during reverse-engineering and QA
+- 对照语义输入和 COROS wire 输出
+- 逆向分析和 QA 时检查字段映射
 
 ### `preview_running_workout`
 
-Purpose:
+用途：
 
-- provide a one-shot read-only authoring result
+- 提供一次性的只读编写预览结果
 
-It should return:
+它应返回：
 
-- normalized workout structure
+- normalized workout 结构
 - rendered summary
 - compiled COROS payload
-- validation success/failure state
+- validation 成功/失败状态
 
-Expected use:
+典型场景：
 
-- default tool for agent authoring flows
-- “show me what would be scheduled” workflows
+- agent authoring flow 的默认入口
+- “看看实际会下发什么”的预览工作流
 
-## Output Shape
+## 输出结构
 
-All four tools should return structured dictionaries.
+4 个工具都应返回结构化字典。
 
-### Success shape
+### 成功结构
 
-At minimum:
+至少包含：
 
 ```json
 {
@@ -136,11 +129,11 @@ At minimum:
 }
 ```
 
-Each tool then adds its own tool-specific fields.
+每个工具再追加自己的业务字段。
 
-### Failure shape
+### 失败结构
 
-All read-only tools should use a consistent failure contract:
+所有只读工具都使用一致的失败合约：
 
 ```json
 {
@@ -149,21 +142,21 @@ All read-only tools should use a consistent failure contract:
 }
 ```
 
-No raw exception should escape the tool boundary.
+工具边界不应泄漏原始异常。
 
-## Proposed Tool Contracts
+## 工具合约
 
 ### `validate_running_workout`
 
-Input:
+输入：
 
 - `name`
 - `steps`
 - `happen_day`
-- `description` (optional)
-- `sort_no` (optional)
+- `description`，可选
+- `sort_no`，可选
 
-Output on success:
+成功输出：
 
 ```json
 {
@@ -173,7 +166,7 @@ Output on success:
 }
 ```
 
-Output on failure:
+失败输出：
 
 ```json
 {
@@ -185,11 +178,11 @@ Output on failure:
 
 ### `render_running_workout`
 
-Input:
+输入：
 
-- same semantic running workout fields as above
+- 同上，使用相同的 semantic running workout 字段
 
-Output on success:
+成功输出：
 
 ```json
 {
@@ -200,11 +193,11 @@ Output on success:
 
 ### `compile_running_workout`
 
-Input:
+输入：
 
-- same semantic running workout fields as above
+- 同上，使用相同的 semantic running workout 字段
 
-Output on success:
+成功输出：
 
 ```json
 {
@@ -215,11 +208,11 @@ Output on success:
 
 ### `preview_running_workout`
 
-Input:
+输入：
 
-- same semantic running workout fields as above
+- 同上，使用相同的 semantic running workout 字段
 
-Output on success:
+成功输出：
 
 ```json
 {
@@ -231,150 +224,142 @@ Output on success:
 }
 ```
 
-## Design Constraints
+## 设计约束
 
-### Reuse current domain logic
+### 复用当前 domain 逻辑
 
-The new MCP tools must reuse the existing running modules:
+新增 MCP 工具必须复用现有 running 模块：
 
 - `normalize_running_workout`
 - `validate_running_workout`
 - `render_running_workout`
 - `compile_running_workout`
 
-The MCP layer should not add a second validation or compilation path.
+MCP 层不应增加第二套校验或编译路径。
 
-### No auth requirement
+### 不要求认证
 
-Because these tools are read-only and purely local:
+因为这些工具是只读且纯本地的：
 
-- they must not call `_get_auth()`
-- they must not call `_run_with_auth()`
-- they must not depend on stored COROS credentials
+- 不应调用 `_get_auth()`
+- 不应调用 `_run_with_auth()`
+- 不应依赖已存储的 COROS credentials
 
-### Keep scheduling unchanged
+### 保持 schedule 行为不变
 
-`schedule_running_workout` remains the write path and is not replaced by these
-tools.
+`schedule_running_workout` 仍然是写路径，不被这些新工具替代。
 
-## Implementation Shape
+## 实现形态
 
-### Server layer
+### Server 层
 
-The implementation should stay inside `coros_mcp.server`.
+实现应放在 `coros_mcp.server` 内。
 
-Likely additions:
+可能新增：
 
-- a tiny shared helper that builds a `RunningWorkout` from MCP tool args
-- a tiny shared helper that wraps exceptions into `{ok: false, error: ...}`
+- 一个很小的共享 helper，用 MCP tool args 构建 `RunningWorkout`
+- 一个很小的共享 helper，将异常包装成 `{ok: false, error: ...}`
 
-This avoids repeating the same normalize/validate boilerplate in four tools.
+这样可以避免 4 个工具重复 normalize / validate 样板代码。
 
-### Domain layer
+### Domain 层
 
-The running domain layer should remain unchanged unless implementation reveals a
-small gap in serialization convenience.
+除非实现时发现确实需要一个很小的序列化便利函数，否则 running domain 层应保持不变。
 
-Expected outcome:
+预期结果：
 
-- no semantic behavior change
-- only MCP exposure changes
+- 不改变语义行为
+- 只增加 MCP 暴露面
 
-## Serialization
+## 序列化
 
-`RunningWorkout`, `StepNode`, `IntervalNode`, and nested dataclasses are not
-ideal raw MCP return values.
+`RunningWorkout`、`StepNode`、`IntervalNode` 和嵌套 dataclass 不适合直接作为 MCP 返回值。
 
-Therefore:
+因此：
 
-- success responses that include normalized structures should serialize them to
-  plain dictionaries/lists
-- this serialization should be deterministic and local to the running MCP path
+- 只要成功响应包含 normalized 结构，就应序列化成普通 dict/list
+- 序列化应是确定性的，并且只服务于 running MCP 路径
 
-The serialization only needs to support current running dataclasses and does not
-need to become a generic framework.
+这个序列化只需要支持当前 running dataclasses，不需要做成通用框架。
 
-## Testing
+## 测试
 
-Add focused tests for:
+新增聚焦测试，覆盖：
 
-- tool registration in `mcp.list_tools()`
-- success and failure responses for `validate_running_workout`
-- success and failure responses for `render_running_workout`
-- success and failure responses for `compile_running_workout`
-- success and failure responses for `preview_running_workout`
-- confirmation that these tools do not require auth
-- confirmation that scheduling behavior remains unchanged
+- 4 个新工具注册到 `mcp.list_tools()`
+- `validate_running_workout` 的成功和失败响应
+- `render_running_workout` 的成功和失败响应
+- `compile_running_workout` 的成功和失败响应
+- `preview_running_workout` 的成功和失败响应
+- 这些工具不要求 auth
+- `schedule_running_workout` 行为保持不变
 
-Primary test location:
+主要测试位置：
 
 - `tests/test_running_tool.py`
 
-If needed, small regression coverage may also land in:
+如有需要，可在这里补小型回归：
 
 - `tests/test_post_release_review_fixes.py`
 
-## Documentation
+## 文档
 
-Update `README.md` so the running tool surface is documented as:
+更新 `README.md`，让 running tool surface 的职责更清晰：
 
-- `preview_running_workout` for default authoring/debugging
-- `validate_running_workout` for validation-only flows
-- `render_running_workout` for summary-only flows
-- `compile_running_workout` for payload inspection
-- `schedule_running_workout` for actual calendar writes
+- `preview_running_workout`：默认编写/调试入口
+- `validate_running_workout`：只做校验
+- `render_running_workout`：只看摘要
+- `compile_running_workout`：查看 payload
+- `schedule_running_workout`：真正写入日历
 
-This should make the tool selection story clearer for agents and humans.
+这样 agent 和人类都更容易选择正确工具。
 
-## Risks
+## 风险
 
-### Tool sprawl
+### 工具数量增加
 
-Adding four tools increases the MCP surface area.
+新增 4 个工具会扩大 MCP surface area。
 
-Mitigation:
+缓解方式：
 
-- document the intended role of each tool clearly
-- recommend `preview_running_workout` as the default read-only entry point
+- 清楚记录每个工具的职责
+- 推荐 `preview_running_workout` 作为默认只读入口
 
-### Inconsistent result shapes
+### 返回结构不一致
 
-If each tool invents its own ad-hoc result format, agents will have a harder
-time using them reliably.
+如果每个工具各自发明结果格式，agent 会更难稳定使用。
 
-Mitigation:
+缓解方式：
 
-- use a shared `ok` / `error` contract
-- keep field names stable and explicit
+- 使用共享的 `ok` / `error` 合约
+- 字段名保持稳定、明确
 
-### Over-abstracting too early
+### 过早抽象
 
-This phase should not build a large generic framework around tool wrapping or
-dataclass serialization.
+本阶段不应围绕 tool wrapping 或 dataclass serialization 做大型通用框架。
 
-Mitigation:
+缓解方式：
 
-- keep helpers narrow
-- only solve what the four running tools need
+- helper 保持窄而直接
+- 只解决这 4 个 running 工具需要的问题
 
-## Success Criteria
+## 成功标准
 
-This design is successful when:
+本设计完成时应满足：
 
-- MCP exposes four new read-only running tools
-- the tools work without auth
-- the tools return structured success/failure results
-- they reuse existing running semantics instead of re-implementing them
-- `schedule_running_workout` remains the only write path
-- README clearly explains which running tool to use for which purpose
+- MCP 暴露 4 个新的只读 running 工具
+- 新工具不需要 auth
+- 新工具返回结构化成功/失败结果
+- 新工具复用现有 running 语义，不重新实现校验/编译逻辑
+- `schedule_running_workout` 仍然是唯一写路径
+- README 清楚说明每个 running 工具适合什么场景
 
-## Current Recommendation
+## 当前建议
 
-Implement this read-only MCP layer before starting running template lifecycle
-or CLI extraction.
+先实现这层只读 MCP 能力，再开始 running template lifecycle 或 CLI 抽取。
 
-That sequencing gives the project:
+这个顺序可以同时获得：
 
-- a better MCP authoring loop now
-- a clearer surface for agents
-- a reusable shape for later CLI commands
+- 更好的 MCP 编写闭环
+- 更清晰的 agent 使用入口
+- 后续 CLI 命令可复用的接口形态
