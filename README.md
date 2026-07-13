@@ -49,6 +49,10 @@ Ask your AI assistant questions like:
 | `delete_workout_template` | Delete a saved workout template from the library |
 | `list_planned_activities` | List planned workouts from the Coros training calendar |
 | `schedule_workout` | Schedule a one-off cycling/intervals workout for a date (no library entry) |
+| `validate_running_workout` | Validate semantic running workout input without scheduling |
+| `render_running_workout` | Render a semantic running workout summary without scheduling |
+| `compile_running_workout` | Compile a semantic running workout to the Coros inline payload without scheduling |
+| `preview_running_workout` | Validate, render, and compile a semantic running workout without scheduling |
 | `schedule_running_workout` | Schedule a one-off semantic running workout for a date (no library entry) |
 | `schedule_strength_workout` | Schedule a one-off strength workout for a date (no library entry) |
 | `schedule_workout_template` | Schedule an existing library template on a calendar day |
@@ -414,6 +418,21 @@ Same parameters as [`save_workout_template`](#save_workout_template), plus `happ
 ```
 
 Returns: `scheduled`, `name`, `happen_day`, `total_minutes`, `steps_count`, `response`
+
+### Running read-only tools
+
+Use these tools before scheduling a semantic running workout. They are local and read-only: no auth, no network request, no calendar write.
+
+| Tool | Use when |
+|------|----------|
+| `preview_running_workout` | Default authoring/debugging path: validate, render, and compile in one response |
+| `validate_running_workout` | Check whether a running workout input is valid |
+| `render_running_workout` | Get a concise human-readable summary |
+| `compile_running_workout` | Inspect the final COROS inline payload |
+
+All four tools accept the same semantic running fields used by `schedule_running_workout`: `name`, `happen_day`, `steps`, optional `description`, and optional `sort_no`.
+
+Successful responses include `"ok": true`. Failures return `"ok": false` plus a human-readable `error`.
 
 ### `schedule_running_workout`
 

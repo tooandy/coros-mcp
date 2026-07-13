@@ -19,6 +19,7 @@ transparently whenever the stored token is expired or rejected.
 
 import json
 import time
+from dataclasses import asdict
 from datetime import datetime, timedelta
 
 import httpx
@@ -37,8 +38,12 @@ from coros_mcp.cache.sync import (
 )
 from coros_mcp.cache.utils import LOCAL_TZ, fmt_local_time
 from coros_mcp.coros_api import TOKEN_TTL_MS
-from coros_mcp.running import compile_running_workout, normalize_running_workout, validate_running_workout
-from coros_mcp.running.render import render_running_workout
+from coros_mcp.running import (
+    compile_running_workout as _compile_running_workout,
+    normalize_running_workout as _normalize_running_workout,
+    validate_running_workout as _validate_running_workout,
+)
+from coros_mcp.running.render import render_running_workout as _render_running_workout
 
 load_dotenv()
 init_db()
@@ -150,6 +155,10 @@ async def get_help() -> dict:
             {"name": "list_planned_activities_raw", "description": "List raw scheduled workouts for calendar update workflows"},  # noqa: E501
             {"name": "calculate_workout_program", "description": "Recalculate edited workout program metrics before updating"},  # noqa: E501
             {"name": "schedule_workout", "description": "Schedule a one-off cycling/intervals/running workout for a date (no library entry)"},  # noqa: E501
+            {"name": "validate_running_workout", "description": "Validate semantic running workout input without scheduling"},  # noqa: E501
+            {"name": "render_running_workout", "description": "Render a semantic running workout preview without scheduling"},  # noqa: E501
+            {"name": "compile_running_workout", "description": "Compile a semantic running workout to the COROS inline payload without scheduling"},  # noqa: E501
+            {"name": "preview_running_workout", "description": "Validate, render, and compile a semantic running workout without scheduling"},  # noqa: E501
             {"name": "schedule_running_workout", "description": "Schedule a one-off semantic running workout for a date via the inline calendar path"},  # noqa: E501
             {"name": "add_planned_workout", "description": "Add an inline planned workout to the training calendar from raw objects"},  # noqa: E501
             {"name": "update_scheduled_workout", "description": "Update an existing scheduled workout on the calendar"},  # noqa: E501
@@ -995,6 +1004,148 @@ async def schedule_workout_template(
         return {"error": str(exc), "scheduled": False}
 
 
+def _build_running_workout(
+    name: str,
+    steps: list[dict],
+    happen_day: str,
+    description: str = "",
+    sort_no: int = 1,
+) -> object:
+    workout = _normalize_running_workout(
+        {
+            "name": name,
+            "steps": steps,
+            "happen_day": happen_day,
+            "description": description,
+            "sort_no": sort_no,
+        }
+    )
+    _validate_running_workout(workout)
+    return workout
+
+
+def _running_tool_error(exc: Exception, *, valid: bool | None = None) -> dict:
+    result = {"ok": False, "error": str(exc)}
+    if valid is not None:
+        result["valid"] = valid
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Tool: validate_running_workout (read-only semantic running validation)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def validate_running_workout(
+    name: str,
+    steps: list[dict],
+    happen_day: str,
+    description: str = "",
+    sort_no: int = 1,
+) -> dict:
+    """
+    Validate semantic running workout input without scheduling it.
+
+    This is read-only: it does not authenticate, call COROS, or write to the
+    calendar.
+    """
+    try:
+        workout = _build_running_workout(name, steps, happen_day, description, sort_no)
+        return {
+            "ok": True,
+            "valid": True,
+            "normalized_workout": asdict(workout),
+        }
+    except Exception as exc:
+        return _running_tool_error(exc, valid=False)
+
+
+# ---------------------------------------------------------------------------
+# Tool: render_running_workout (read-only semantic running renderer)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def render_running_workout(
+    name: str,
+    steps: list[dict],
+    happen_day: str,
+    description: str = "",
+    sort_no: int = 1,
+) -> dict:
+    """
+    Render a semantic running workout summary without scheduling it.
+
+    This is read-only: it does not authenticate, call COROS, or write to the
+    calendar.
+    """
+    try:
+        workout = _build_running_workout(name, steps, happen_day, description, sort_no)
+        return {
+            "ok": True,
+            "rendered_summary": _render_running_workout(workout),
+        }
+    except Exception as exc:
+        return _running_tool_error(exc)
+
+
+# ---------------------------------------------------------------------------
+# Tool: compile_running_workout (read-only semantic running compiler)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def compile_running_workout(
+    name: str,
+    steps: list[dict],
+    happen_day: str,
+    description: str = "",
+    sort_no: int = 1,
+) -> dict:
+    """
+    Compile semantic running workout input into the COROS inline payload.
+
+    This is read-only: it does not authenticate, call COROS, or write to the
+    calendar.
+    """
+    try:
+        workout = _build_running_workout(name, steps, happen_day, description, sort_no)
+        return {
+            "ok": True,
+            "program": _compile_running_workout(workout),
+        }
+    except Exception as exc:
+        return _running_tool_error(exc)
+
+
+# ---------------------------------------------------------------------------
+# Tool: preview_running_workout (read-only semantic running preview)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def preview_running_workout(
+    name: str,
+    steps: list[dict],
+    happen_day: str,
+    description: str = "",
+    sort_no: int = 1,
+) -> dict:
+    """
+    Validate, render, and compile a semantic running workout without scheduling it.
+
+    This is the preferred read-only running authoring/debugging tool.
+    """
+    try:
+        workout = _build_running_workout(name, steps, happen_day, description, sort_no)
+        return {
+            "ok": True,
+            "valid": True,
+            "normalized_workout": asdict(workout),
+            "rendered_summary": _render_running_workout(workout),
+            "program": _compile_running_workout(workout),
+        }
+    except Exception as exc:
+        return _running_tool_error(exc, valid=False)
+
+
 # ---------------------------------------------------------------------------
 # Tool: schedule_running_workout (inline, one-off semantic running)
 # ---------------------------------------------------------------------------
@@ -1039,16 +1190,8 @@ async def schedule_running_workout(
         return {"error": _NOT_AUTHENTICATED, "scheduled": False}
 
     try:
-        workout = normalize_running_workout(
-            {
-                "name": name,
-                "steps": steps,
-                "happen_day": happen_day,
-                "description": description,
-            }
-        )
-        validate_running_workout(workout)
-        program = compile_running_workout(workout)
+        workout = _build_running_workout(name, steps, happen_day, description, sort_no)
+        program = _compile_running_workout(workout)
         response = await _run_with_auth(
             coros_api._post_schedule_inline,
             auth,
@@ -1070,7 +1213,7 @@ async def schedule_running_workout(
             response,
         )
         if render_preview:
-            result["rendered_summary"] = render_running_workout(workout)
+            result["rendered_summary"] = _render_running_workout(workout)
         return result
     except Exception as exc:
         return {

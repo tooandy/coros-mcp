@@ -3,12 +3,204 @@ import asyncio
 import pytest
 
 from coros_mcp import coros_api
-from coros_mcp.server import mcp, schedule_running_workout
+from coros_mcp.server import (
+    compile_running_workout,
+    mcp,
+    preview_running_workout,
+    render_running_workout,
+    schedule_running_workout,
+    validate_running_workout,
+)
+
+
+def _running_steps():
+    return [
+        {
+            "kind": "step",
+            "action": "warmup",
+            "target": {"type": "time", "value": 15, "unit": "min"},
+            "intensity": {"type": "none"},
+        },
+        {
+            "kind": "interval",
+            "repeat": 4,
+            "work": {
+                "action": "work",
+                "target": {"type": "distance", "value": 1000, "unit": "m"},
+                "intensity": {
+                    "type": "pace_percent_lthr",
+                    "zone": {"preset": "lactate_threshold_zone"},
+                },
+            },
+            "recovery": {
+                "action": "recovery",
+                "target": {"type": "distance", "value": 400, "unit": "m"},
+                "intensity": {"type": "none"},
+            },
+        },
+    ]
+
+
+def _invalid_running_steps():
+    return [
+        {
+            "kind": "step",
+            "action": "work",
+            "target": {"type": "time", "value": 20, "unit": "min"},
+            "intensity": {
+                "type": "heart_rate_percent_max",
+                "zone": {"preset": "aerobic_power_zone"},
+            },
+        }
+    ]
 
 
 def test_schedule_running_workout_is_registered():
     tools = {tool.name for tool in asyncio.run(mcp.list_tools())}
     assert "schedule_running_workout" in tools
+
+
+def test_running_readonly_tools_are_registered():
+    tools = {tool.name for tool in asyncio.run(mcp.list_tools())}
+
+    assert "validate_running_workout" in tools
+    assert "render_running_workout" in tools
+    assert "compile_running_workout" in tools
+    assert "preview_running_workout" in tools
+
+
+@pytest.mark.asyncio
+async def test_validate_running_workout_returns_normalized_success_without_auth(monkeypatch):
+    async def fail_get_auth():
+        raise AssertionError("read-only running validation must not require auth")
+
+    monkeypatch.setattr("coros_mcp.server._get_auth", fail_get_auth)
+
+    result = await validate_running_workout(
+        name="4x1km LT",
+        description="Threshold repeats",
+        happen_day="20260715",
+        sort_no=3,
+        steps=_running_steps(),
+    )
+
+    assert result["ok"] is True
+    assert result["valid"] is True
+    assert result["normalized_workout"]["name"] == "4x1km LT"
+    assert result["normalized_workout"]["sort_no"] == 3
+    assert result["normalized_workout"]["steps"][1]["kind"] == "interval"
+
+
+@pytest.mark.asyncio
+async def test_validate_running_workout_returns_structured_failure():
+    result = await validate_running_workout(
+        name="Broken",
+        happen_day="20260715",
+        steps=_invalid_running_steps(),
+    )
+
+    assert result["ok"] is False
+    assert result["valid"] is False
+    assert "error" in result
+    assert "heart_rate_percent_max" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_render_running_workout_returns_summary_without_auth(monkeypatch):
+    async def fail_get_auth():
+        raise AssertionError("read-only running rendering must not require auth")
+
+    monkeypatch.setattr("coros_mcp.server._get_auth", fail_get_auth)
+
+    result = await render_running_workout(
+        name="4x1km LT",
+        description="Threshold repeats",
+        happen_day="20260715",
+        steps=_running_steps(),
+    )
+
+    assert result["ok"] is True
+    assert "Warmup 15 min" in result["rendered_summary"]
+    assert "4 x [" in result["rendered_summary"]
+
+
+@pytest.mark.asyncio
+async def test_render_running_workout_returns_structured_failure():
+    result = await render_running_workout(
+        name="Broken",
+        happen_day="20260715",
+        steps=_invalid_running_steps(),
+    )
+
+    assert result["ok"] is False
+    assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_compile_running_workout_returns_program_without_auth(monkeypatch):
+    async def fail_get_auth():
+        raise AssertionError("read-only running compilation must not require auth")
+
+    monkeypatch.setattr("coros_mcp.server._get_auth", fail_get_auth)
+
+    result = await compile_running_workout(
+        name="4x1km LT",
+        description="Threshold repeats",
+        happen_day="20260715",
+        steps=_running_steps(),
+    )
+
+    assert result["ok"] is True
+    assert result["program"]["overview"] == "Threshold repeats"
+    assert result["program"]["exercises"][2]["targetType"] == 5
+    assert result["program"]["exercises"][3]["exerciseType"] == 4
+
+
+@pytest.mark.asyncio
+async def test_compile_running_workout_returns_structured_failure():
+    result = await compile_running_workout(
+        name="Broken",
+        happen_day="20260715",
+        steps=_invalid_running_steps(),
+    )
+
+    assert result["ok"] is False
+    assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_preview_running_workout_returns_full_readonly_result_without_auth(monkeypatch):
+    async def fail_get_auth():
+        raise AssertionError("read-only running preview must not require auth")
+
+    monkeypatch.setattr("coros_mcp.server._get_auth", fail_get_auth)
+
+    result = await preview_running_workout(
+        name="4x1km LT",
+        description="Threshold repeats",
+        happen_day="20260715",
+        sort_no=3,
+        steps=_running_steps(),
+    )
+
+    assert result["ok"] is True
+    assert result["valid"] is True
+    assert result["normalized_workout"]["sort_no"] == 3
+    assert "Warmup 15 min" in result["rendered_summary"]
+    assert result["program"]["overview"] == "Threshold repeats"
+
+
+@pytest.mark.asyncio
+async def test_preview_running_workout_returns_structured_failure():
+    result = await preview_running_workout(
+        name="Broken",
+        happen_day="20260715",
+        steps=_invalid_running_steps(),
+    )
+
+    assert result["ok"] is False
+    assert result["valid"] is False
+    assert "error" in result
 
 
 @pytest.mark.asyncio
