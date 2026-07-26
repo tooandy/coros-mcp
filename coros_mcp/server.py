@@ -149,6 +149,8 @@ async def get_help() -> dict:
             {"name": "list_training_plans", "description": "List training plans saved in the Coros Training Hub"},  # noqa: E501
             {"name": "list_training_plans_raw", "description": "List raw training plans including entities and programs"},  # noqa: E501
             {"name": "save_workout_template", "description": "Save a reusable cycling/intervals/running workout template to the library"},  # noqa: E501
+            {"name": "save_running_workout_template", "description": "Save a reusable semantic running workout template to the library"},  # noqa: E501
+            {"name": "list_running_workout_templates", "description": "List reusable running workout templates saved in the Coros library"},  # noqa: E501
             {"name": "save_strength_workout_template", "description": "Save a reusable strength workout template to the library"},  # noqa: E501
             {"name": "delete_workout_template", "description": "Delete a saved workout template by workout_id"},
             {"name": "list_planned_activities", "description": "List workouts scheduled on the training calendar"},
@@ -164,6 +166,7 @@ async def get_help() -> dict:
             {"name": "update_scheduled_workout", "description": "Update an existing scheduled workout on the calendar"},  # noqa: E501
             {"name": "schedule_strength_workout", "description": "Schedule a one-off strength workout for a date (no library entry)"},  # noqa: E501
             {"name": "schedule_workout_template", "description": "Schedule an existing library workout template on a specific date"},  # noqa: E501
+            {"name": "schedule_running_workout_template", "description": "Schedule an existing running library workout template on a specific date"},  # noqa: E501
             {"name": "remove_scheduled_workout", "description": "Remove a workout from the training calendar"},
             {"name": "list_exercises", "description": "List available strength exercises (used when building strength workouts)"},  # noqa: E501
             {"name": "sync_coros_data", "description": "Backfill local cache from the Coros API for a date range"},
@@ -661,6 +664,29 @@ async def list_workout_templates() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Tool: list_running_workout_templates
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def list_running_workout_templates() -> dict:
+    """
+    List reusable running workout templates saved in the Coros library.
+
+    This is a running-first convenience wrapper around list_workout_templates.
+    COROS returns reusable running templates with workout-API sportType=1.
+    """
+    auth = await _get_auth()
+    if auth is None:
+        return {"error": _NOT_AUTHENTICATED, "workouts": []}
+    try:
+        workouts = await _run_with_auth(coros_api.fetch_workout_templates, auth)
+        running_workouts = [workout for workout in workouts if workout.get("sport_type") == 1]
+        return {"workouts": running_workouts, "count": len(running_workouts)}
+    except Exception as exc:
+        return {"error": str(exc), "workouts": []}
+
+
+# ---------------------------------------------------------------------------
 # Tool: list_training_plans
 # ---------------------------------------------------------------------------
 
@@ -1002,6 +1028,130 @@ async def schedule_workout_template(
         )
     except Exception as exc:
         return {"error": str(exc), "scheduled": False}
+
+
+# ---------------------------------------------------------------------------
+# Tool: save_running_workout_template (semantic running library template)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def save_running_workout_template(
+    name: str,
+    steps: list[dict],
+    description: str = "",
+    render_preview: bool = False,
+    strict: bool = True,
+) -> dict:
+    """
+    Save a reusable semantic running workout TEMPLATE to the Coros library.
+
+    Use this only when the user explicitly wants a reusable running workout in
+    the library. For a one-off calendar entry, use schedule_running_workout.
+
+    Parameters
+    ----------
+    name : str
+        Template name as it should appear in the workout library.
+    steps : list[dict]
+        Structured running steps accepted by normalize_running_workout.
+    description : str
+        Free-text notes written into the workout overview.
+    render_preview : bool
+        When True, include a human-readable rendered_summary in the result.
+    strict : bool
+        Reserved for future validation modes. Invalid input still returns a
+        failure payload regardless of this flag's value.
+    """
+    auth = await _get_auth()
+    if auth is None:
+        return {"error": _NOT_AUTHENTICATED, "saved": False}
+
+    try:
+        workout = _build_running_workout(name, steps, "19700101", description, 1)
+        program = _compile_running_workout(workout)
+        workout_id = await _run_with_auth(
+            coros_api.save_workout_program,
+            auth,
+            program,
+            retry_all=False,
+        )
+        result = {
+            "saved": True,
+            "workout_id": workout_id,
+            "name": name,
+            "description": description,
+            "steps_count": len(program["exercises"]),
+            "strict": strict,
+            "message": "Running workout template created. Use schedule_running_workout_template to place it on a date.",  # noqa: E501
+        }
+        if render_preview:
+            result["rendered_summary"] = _render_running_workout(workout)
+        return result
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "saved": False,
+            "strict": strict,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Tool: schedule_running_workout_template
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def schedule_running_workout_template(
+    workout_id: str,
+    happen_day: str,
+    sort_no: int = 1,
+) -> dict:
+    """
+    Schedule an existing running workout TEMPLATE on a specific date.
+
+    This checks the template list first and only schedules templates whose
+    summarized sport_type is the running workout wire ID (1).
+    """
+    auth = await _get_auth()
+    if auth is None:
+        return {"error": _NOT_AUTHENTICATED, "scheduled": False}
+
+    try:
+        workouts = await _run_with_auth(coros_api.fetch_workout_templates, auth)
+        template = next(
+            (
+                workout
+                for workout in workouts
+                if workout.get("id") == str(workout_id) and workout.get("sport_type") == 1
+            ),
+            None,
+        )
+        if template is None:
+            return {
+                "error": f"Running workout template {workout_id} not found.",
+                "scheduled": False,
+                "workout_id": workout_id,
+            }
+
+        response = await _run_with_auth(
+            coros_api.schedule_workout_template,
+            auth,
+            workout_id,
+            happen_day,
+            sort_no,
+            retry_all=False,
+        )
+        return _attach_enrichment_warning(
+            {
+                "scheduled": True,
+                "workout_id": workout_id,
+                "name": template.get("name"),
+                "happen_day": happen_day,
+                "response": response,
+            },
+            response,
+        )
+    except Exception as exc:
+        return {"error": str(exc), "scheduled": False, "workout_id": workout_id}
 
 
 def _build_running_workout(

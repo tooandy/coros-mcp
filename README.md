@@ -44,7 +44,9 @@ Ask your AI assistant questions like:
 | `list_activities` | List activities for a date range with summary metrics |
 | `get_activity_detail` | Fetch full detail for a single activity (laps, HR zones, power zones) |
 | `list_workout_templates` | List reusable workout templates saved in the library |
+| `list_running_workout_templates` | List reusable running workout templates saved in the library |
 | `save_workout_template` | Save a reusable cycling/intervals workout template (named steps, power targets) |
+| `save_running_workout_template` | Save a reusable semantic running workout template |
 | `save_strength_workout_template` | Save a reusable strength workout template (sets, reps, or timed exercises) |
 | `delete_workout_template` | Delete a saved workout template from the library |
 | `list_planned_activities` | List planned workouts from the Coros training calendar |
@@ -56,6 +58,7 @@ Ask your AI assistant questions like:
 | `schedule_running_workout` | Schedule a one-off semantic running workout for a date (no library entry) |
 | `schedule_strength_workout` | Schedule a one-off strength workout for a date (no library entry) |
 | `schedule_workout_template` | Schedule an existing library template on a calendar day |
+| `schedule_running_workout_template` | Schedule an existing running library template on a calendar day |
 | `remove_scheduled_workout` | Remove a scheduled workout from the calendar |
 | `list_exercises` | Browse the Coros exercise catalogue, especially for strength workouts |
 | `sync_coros_data` | Backfill all data into the local SQLite cache for a date range |
@@ -282,6 +285,18 @@ Returns: `workouts` (list), `count`
 
 Each entry includes: `id`, `name`, `sport_type`, `sport_name`, `estimated_time_seconds`, `exercise_count`, `exercises` (list of steps with `name`, `duration_seconds`, `intensity_low`, `intensity_high`, `sets`)
 
+### `list_running_workout_templates`
+
+List reusable running workout templates saved in the Coros library.
+
+```json
+{}
+```
+
+Returns: `workouts` (list), `count`
+
+This is a running-first wrapper around `list_workout_templates` and only returns templates whose COROS workout `sport_type` is `1` (running).
+
 ### `save_workout_template`
 
 Save a reusable cycling/intervals workout **template** to the Coros library. The template appears in the Coros app and can be synced to the watch. Steps can be plain steps or repeat groups for intervals.
@@ -324,6 +339,47 @@ Save a reusable cycling/intervals workout **template** to the Coros library. The
 `sport_type`: `2` = Indoor Cycling (default), `200` = Road Bike
 
 Returns: `workout_id`, `name`, `total_minutes`, `steps_count`, `message`
+
+### `save_running_workout_template`
+
+Save a reusable semantic running workout **template** to the Coros library. It accepts the same `steps` schema as [`schedule_running_workout`](#schedule_running_workout), but does not require `happen_day` because templates are not tied to a date.
+
+> ⚠️ This persists to the library indefinitely. For a one-off workout for a specific date, use [`schedule_running_workout`](#schedule_running_workout) instead.
+
+```json
+{
+  "name": "4x1km LT Template",
+  "description": "Reusable threshold repeats",
+  "render_preview": true,
+  "steps": [
+    {
+      "kind": "step",
+      "action": "warmup",
+      "target": {"type": "time", "value": 15, "unit": "min"},
+      "intensity": {"type": "none"}
+    },
+    {
+      "kind": "interval",
+      "repeat": 4,
+      "work": {
+        "action": "work",
+        "target": {"type": "distance", "value": 1000, "unit": "m"},
+        "intensity": {
+          "type": "pace_percent_lthr",
+          "zone": {"preset": "lactate_threshold_zone"}
+        }
+      },
+      "recovery": {
+        "action": "recovery",
+        "target": {"type": "distance", "value": 400, "unit": "m"},
+        "intensity": {"type": "none"}
+      }
+    }
+  ]
+}
+```
+
+Returns: `saved`, `workout_id`, `name`, `description`, `steps_count`, `message`, and optionally `rendered_summary`
 
 ### `save_strength_workout_template`
 
@@ -505,6 +561,18 @@ Schedule an existing library template on a calendar day.
 The `workout_id` comes from `list_workout_templates`. For one-off workouts that don't need a library entry, use [`schedule_workout`](#schedule_workout) for cycling/legacy interval shapes, [`schedule_running_workout`](#schedule_running_workout) for semantic running workouts, or [`schedule_strength_workout`](#schedule_strength_workout) for strength instead.
 
 Returns: `scheduled`, `workout_id`, `happen_day`, `response`
+
+### `schedule_running_workout_template`
+
+Schedule an existing running library template on a calendar day.
+
+```json
+{ "workout_id": "1234567890", "happen_day": "20260312", "sort_no": 1 }
+```
+
+The `workout_id` should come from `list_running_workout_templates` or `save_running_workout_template`. This wrapper checks that the template is a running template before scheduling it.
+
+Returns: `scheduled`, `workout_id`, `name`, `happen_day`, `response`
 
 ### `remove_scheduled_workout`
 

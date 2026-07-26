@@ -21,8 +21,11 @@
 | 只想看人类可读摘要 | `render_running_workout` | 否 |
 | 只想看 COROS payload | `compile_running_workout` | 否 |
 | 确认无误后写入日历 | `schedule_running_workout` | 是 |
+| 想保存为可复用跑步模板 | `save_running_workout_template` | 是 |
+| 想列出已有跑步模板 | `list_running_workout_templates` | 否 |
+| 想把已有跑步模板安排到某天 | `schedule_running_workout_template` | 是 |
 
-推荐默认流程：
+推荐默认 one-off 流程：
 
 1. 先调用 `preview_running_workout`
 2. 检查 `ok == true`、`valid == true`
@@ -30,7 +33,16 @@
 4. 必要时检查 `program.exercises`
 5. 最后再调用 `schedule_running_workout`
 
-只读工具不需要认证、不触网、不写日历。
+推荐模板流程：
+
+1. 先调用 `preview_running_workout`
+2. 确认摘要和 payload 后调用 `save_running_workout_template`
+3. 用 `list_running_workout_templates` 确认模板存在
+4. 需要安排到日期时调用 `schedule_running_workout_template`
+
+`validate_running_workout`、`render_running_workout`、`compile_running_workout`、`preview_running_workout` 是本地只读工具，不需要认证、不触网、不写日历。
+
+`list_running_workout_templates` 也是只读工具，但需要认证并读取 COROS 模板库。
 
 ---
 

@@ -38,19 +38,24 @@
 
 这些工具已经把“校验 / 预览 / 编译 / 下发”拆成独立步骤，其中前 4 个是只读工具，`schedule_running_workout` 仍然是唯一写日历入口。
 
+已完成最小 running-first template lifecycle：
+
+- `save_running_workout_template`
+- `list_running_workout_templates`
+- `schedule_running_workout_template`
+- 删除跑步模板可复用 `delete_workout_template`
+
 仍未完成：
 
-- running template lifecycle
-  - 保存跑步模板
-  - 更新跑步模板
-  - 删除跑步模板
-  - 用 running-first 语义创建可复用模板
+- running-first update/delete alias
+- 参数化 running template
+- 用 running-first 语义反编译 / 渲染已有模板
 
 关于后续模板化方向，已经单独整理在：
 
 - [running_workout_templates.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/running_workout_templates.md)
 
-只读 MCP 闭环已经补齐，模板生命周期仍是后续能力。
+只读 MCP 闭环已经补齐，模板生命周期也已经有最小可用闭环。后续重点是参数化模板和已有模板的语义化编辑。
 
 ---
 
@@ -149,15 +154,15 @@
 
 ### 5. 课表生命周期能力仍不足
 
-当前 running-first 的重点是“某一天的一次性课表下发”。
+当前 running-first 已经支持“一次性课表下发”和“保存固定结构模板后再安排”。
 
 但从“完整课表能力”来看，还缺：
 
-- 以 running 语义保存为模板
 - 列出 running 模板及其语义摘要
 - 更新已有 running 模板
-- 删除 running 模板
-- 复制模板到指定日期
+- running-first 删除 alias
+- 将已有模板反编译回 running semantic schema
+- 参数化模板
 - 基于模板批量安排多天课表
 
 这部分不一定要马上做，但它决定了后续是否能从“one-off scheduling”走向“真正可复用的跑步课表系统”。
@@ -212,8 +217,13 @@
 
 ### P3
 
-- 增强 running template lifecycle
-- 沉淀并实现 [running_workout_templates.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/running_workout_templates.md) 中的 running-first / hansons-first 模板设计
+- 已完成：最小 running template lifecycle
+  - `save_running_workout_template`
+  - `list_running_workout_templates`
+  - `schedule_running_workout_template`
+- 待完成：running-first update/delete alias
+- 待完成：已有模板语义反编译 / 摘要渲染
+- 待完成：沉淀并实现 [running_workout_templates.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/running_workout_templates.md) 中的参数化 running-first / hansons-first 模板设计
 - 评估是否需要更强的 group 结构表达
 
 ### P4

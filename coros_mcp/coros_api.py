@@ -1082,6 +1082,24 @@ async def save_workout_template(
     return str(body.get("data", ""))
 
 
+async def save_workout_program(auth: StoredAuth, program: dict) -> str:
+    """Save an already-built workout program to the Coros workout library."""
+    payload = json.loads(json.dumps(program))
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            _base_url(auth.region) + ENDPOINTS["workout_add"],
+            json=payload,
+            headers=_auth_headers(auth),
+        )
+        resp.raise_for_status()
+        body = resp.json()
+
+    _check_response(body, "workout create")
+
+    return str(body.get("data", ""))
+
+
 async def delete_workout_template(auth: StoredAuth, workout_id: str) -> None:
     """Delete a saved workout template by ID."""
     async with httpx.AsyncClient(timeout=30) as client:

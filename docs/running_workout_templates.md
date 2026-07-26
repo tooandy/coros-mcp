@@ -2,7 +2,27 @@
 
 本文档记录跑步课表模板化的后续设计方向。
 
-它不是当前 `coros-mcp` 的已实现能力说明，而是为了后续实现 running-first template lifecycle 时，保留一份清晰、可复用的设计草稿。
+它既记录当前 `coros-mcp` 已实现的 running-first template lifecycle，也保留后续参数化模板能力的设计草稿。
+
+---
+
+## 当前已实现能力
+
+当前已经提供一组最小 running-first 模板工具：
+
+| 工具 | 作用 |
+|------|------|
+| `save_running_workout_template` | 将 semantic running workout 保存为 COROS 模板库中的可复用跑步模板 |
+| `list_running_workout_templates` | 列出 COROS 模板库中的跑步模板 |
+| `schedule_running_workout_template` | 将已有跑步模板安排到指定日期 |
+| `delete_workout_template` | 删除模板，跑步模板复用现有通用删除入口 |
+
+这版实现的特点：
+
+- 保存模板时复用当前 running semantic model、validator、compiler。
+- 保存模板不要求用户传 `happen_day`，因为模板本身不绑定日期。
+- 安排模板时会先确认模板是跑步模板，避免把骑行/力量模板误排进 running-first 流程。
+- 当前保存的是“已实例化后的固定课表模板”，还不是“带参数槽位的抽象模板”。
 
 ---
 
@@ -157,26 +177,32 @@
 - 当前 `schedule_running_workout` 仍然是运行时下发入口
 - 模板能力是在它之前增加一层复用能力
 
-这也意味着，后续最自然的接口形态可能包括：
+这也意味着，当前最小接口已经包括：
 
 - `save_running_workout_template`
 - `list_running_workout_templates`
-- `render_running_workout_template`
-- `schedule_running_workout_from_template`
+- `schedule_running_workout_template`
 
-是否需要 `update/delete/copy`，可以在模板生命周期正式立项时再细化。
+仍未实现但后续可能需要的接口包括：
+
+- `render_running_workout_template`
+- `update_running_workout_template`
+- `instantiate_running_workout_template`
+- `schedule_running_workout_from_parameterized_template`
+
+删除能力当前复用 `delete_workout_template`。是否需要 running-first 的 `delete_running_workout_template` alias，可以等 agent 使用反馈后再决定。
 
 ---
 
 ## 当前结论
 
-模板化是值得做的，但它属于后续增强方向，不是当前 running workout 主链路的最高优先级事项。
+模板化已经具备最小可用闭环，但还没有进入“参数化训练法模板”的阶段。
 
-现阶段更合理的策略是：
+后续更合理的策略是：
 
-1. 先把 running workout MCP 主链路补完整、补闭环
-2. 再引入 running-first template lifecycle
-3. 如果首批模板以汉森训练法为切入点，优先采用更收敛的 `hansons-first` 抽象
+1. 继续保留当前 running semantic model 作为底层唯一事实来源
+2. 基于真实使用反馈决定是否补 running-first update/delete alias
+3. 如果首批参数化模板以汉森训练法为切入点，优先采用更收敛的 `hansons-first` 抽象
 
 这样能同时兼顾：
 
