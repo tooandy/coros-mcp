@@ -233,24 +233,53 @@ def _load_json_arg(file_path: str | None, inline_json: str | None) -> dict:
     return payload
 
 
+def _get_cli_auth():
+    auth = get_stored_auth()
+    if auth is None:
+        auth = asyncio.run(try_auto_login())
+    if auth is None:
+        raise RuntimeError("Not authenticated. Set COROS_EMAIL and COROS_PASSWORD in .env, or run 'coros-mcp auth'.")
+    return auth
+
+
+def _running_workout_from_payload(payload: dict, *, template: bool = False):
+    from coros_mcp.running import normalize_running_workout, validate_running_workout
+
+    workout_payload = dict(payload)
+    if template and not workout_payload.get("happen_day"):
+        workout_payload["happen_day"] = "19700101"
+
+    workout = normalize_running_workout(workout_payload)
+    validate_running_workout(workout)
+    return workout
+
+
 def cmd_running() -> int:
     """Local running workout authoring helpers."""
     import argparse
 
+    from coros_mcp import coros_api
     from coros_mcp.running import (
         compile_running_workout,
-        normalize_running_workout,
-        validate_running_workout,
     )
     from coros_mcp.running.render import render_running_workout
 
     parser = argparse.ArgumentParser(
         prog="coros-mcp running",
-        description="Validate, render, preview, or compile a semantic running workout JSON payload locally.",
+        description="Validate, render, compile, schedule, or save semantic running workout JSON.",
     )
     parser.add_argument(
         "action",
-        choices=("validate", "render", "compile", "preview"),
+        choices=(
+            "validate",
+            "render",
+            "compile",
+            "preview",
+            "schedule",
+            "save-template",
+            "list-templates",
+            "schedule-template",
+        ),
         help="Local running workout operation to run.",
     )
     input_group = parser.add_mutually_exclusive_group()
@@ -265,12 +294,62 @@ def cmd_running() -> int:
         dest="inline_json",
         help="Inline workout JSON payload.",
     )
+    parser.add_argument("--render-preview", action="store_true", help="Include rendered_summary for write actions.")
+    parser.add_argument("--workout-id", help="Running template ID for schedule-template.")
+    parser.add_argument("--happen-day", help="YYYYMMDD date for schedule-template.")
+    parser.add_argument("--sort-no", type=int, default=1, help="Order within the day for scheduling actions.")
     parsed = parser.parse_args(sys.argv[2:])
 
     try:
+        if parsed.action == "list-templates":
+            auth = _get_cli_auth()
+            workouts = asyncio.run(coros_api.fetch_workout_templates(auth))
+            running_workouts = [workout for workout in workouts if workout.get("sport_type") == 1]
+            print(json.dumps(
+                {
+                    "ok": True,
+                    "workouts": running_workouts,
+                    "count": len(running_workouts),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        if parsed.action == "schedule-template":
+            if not parsed.workout_id or not parsed.happen_day:
+                raise ValueError("schedule-template requires --workout-id and --happen-day")
+            auth = _get_cli_auth()
+            workouts = asyncio.run(coros_api.fetch_workout_templates(auth))
+            template = next(
+                (
+                    workout
+                    for workout in workouts
+                    if workout.get("id") == str(parsed.workout_id) and workout.get("sport_type") == 1
+                ),
+                None,
+            )
+            if template is None:
+                raise ValueError(f"Running workout template {parsed.workout_id} not found")
+            response = asyncio.run(
+                coros_api.schedule_workout_template(auth, parsed.workout_id, parsed.happen_day, parsed.sort_no)
+            )
+            print(json.dumps(
+                {
+                    "ok": True,
+                    "scheduled": True,
+                    "workout_id": parsed.workout_id,
+                    "name": template.get("name"),
+                    "happen_day": parsed.happen_day,
+                    "response": response,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
         payload = _load_json_arg(parsed.file, parsed.inline_json)
-        workout = normalize_running_workout(payload)
-        validate_running_workout(workout)
+        workout = _running_workout_from_payload(payload, template=parsed.action == "save-template")
 
         result: dict = {"ok": True}
         if parsed.action == "validate":
@@ -280,11 +359,42 @@ def cmd_running() -> int:
             result["rendered_summary"] = render_running_workout(workout)
         elif parsed.action == "compile":
             result["program"] = compile_running_workout(workout)
-        else:
+        elif parsed.action == "preview":
             result["valid"] = True
             result["normalized_workout"] = asdict(workout)
             result["rendered_summary"] = render_running_workout(workout)
             result["program"] = compile_running_workout(workout)
+        elif parsed.action == "schedule":
+            auth = _get_cli_auth()
+            program = compile_running_workout(workout)
+            response = asyncio.run(
+                coros_api._post_schedule_inline(auth, program, workout.happen_day, workout.sort_no)
+            )
+            result.update(
+                {
+                    "scheduled": True,
+                    "name": workout.name,
+                    "happen_day": workout.happen_day,
+                    "steps_count": len(program["exercises"]),
+                    "response": response,
+                }
+            )
+            if parsed.render_preview:
+                result["rendered_summary"] = render_running_workout(workout)
+        elif parsed.action == "save-template":
+            auth = _get_cli_auth()
+            program = compile_running_workout(workout)
+            workout_id = asyncio.run(coros_api.save_workout_program(auth, program))
+            result.update(
+                {
+                    "saved": True,
+                    "workout_id": workout_id,
+                    "name": workout.name,
+                    "steps_count": len(program["exercises"]),
+                }
+            )
+            if parsed.render_preview:
+                result["rendered_summary"] = render_running_workout(workout)
 
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
@@ -324,6 +434,10 @@ Running ACTION:
   render                             Render a human-readable summary
   compile                            Compile to COROS workout payload
   preview                            Validate, render, and compile together
+  schedule                           Schedule semantic running workout from JSON
+  save-template                      Save semantic running workout JSON as a reusable template
+  list-templates                     List reusable running workout templates
+  schedule-template                  Schedule a reusable running template by ID
 """
     )
     return 0

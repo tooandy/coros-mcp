@@ -1,6 +1,7 @@
 import json
 from unittest.mock import patch
 
+from coros_mcp import coros_api
 from coros_mcp import cli
 
 
@@ -95,3 +96,142 @@ def test_cli_help_lists_running_command(capsys):
 
     assert result == 0
     assert "coros-mcp running ACTION" in captured.out
+
+
+def test_running_cli_schedule_posts_compiled_program(capsys, monkeypatch):
+    captured = {}
+    auth = coros_api.StoredAuth(
+        access_token="t",
+        user_id="u",
+        region="eu",
+        timestamp=0,
+        mobile_access_token=None,
+        mobile_login_payload=None,
+    )
+
+    async def fake_post_schedule_inline(auth, program, happen_day, sort_no):
+        captured["program"] = program
+        captured["happen_day"] = happen_day
+        captured["sort_no"] = sort_no
+        return {"id_in_plan": "42", "enrichment_ok": True}
+
+    monkeypatch.setattr(cli, "get_stored_auth", lambda: auth)
+    monkeypatch.setattr(coros_api, "_post_schedule_inline", fake_post_schedule_inline)
+
+    with patch.object(
+        cli.sys,
+        "argv",
+        ["coros-mcp", "running", "schedule", "--json", json.dumps(_payload()), "--render-preview"],
+    ):
+        result = cli.cmd_running()
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert result == 0
+    assert payload["scheduled"] is True
+    assert payload["happen_day"] == "20260715"
+    assert captured["program"]["sportType"] == 1
+    assert captured["sort_no"] == 1
+    assert "Warmup 15 min" in payload["rendered_summary"]
+
+
+def test_running_cli_save_template_uses_placeholder_date(capsys, monkeypatch):
+    captured = {}
+    auth = coros_api.StoredAuth(
+        access_token="t",
+        user_id="u",
+        region="eu",
+        timestamp=0,
+        mobile_access_token=None,
+        mobile_login_payload=None,
+    )
+    payload = _payload()
+    payload.pop("happen_day")
+
+    async def fake_save_workout_program(auth, program):
+        captured["program"] = program
+        return "template-42"
+
+    monkeypatch.setattr(cli, "get_stored_auth", lambda: auth)
+    monkeypatch.setattr(coros_api, "save_workout_program", fake_save_workout_program)
+
+    with patch.object(
+        cli.sys,
+        "argv",
+        ["coros-mcp", "running", "save-template", "--json", json.dumps(payload)],
+    ):
+        result = cli.cmd_running()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert result == 0
+    assert output["saved"] is True
+    assert output["workout_id"] == "template-42"
+    assert captured["program"]["name"] == "4x1km LT"
+
+
+def test_running_cli_list_templates_filters_to_running(capsys, monkeypatch):
+    auth = coros_api.StoredAuth(
+        access_token="t",
+        user_id="u",
+        region="eu",
+        timestamp=0,
+        mobile_access_token=None,
+        mobile_login_payload=None,
+    )
+
+    async def fake_fetch_workout_templates(auth):
+        return [
+            {"id": "run-1", "name": "Run", "sport_type": 1},
+            {"id": "bike-1", "name": "Bike", "sport_type": 2},
+        ]
+
+    monkeypatch.setattr(cli, "get_stored_auth", lambda: auth)
+    monkeypatch.setattr(coros_api, "fetch_workout_templates", fake_fetch_workout_templates)
+
+    with patch.object(cli.sys, "argv", ["coros-mcp", "running", "list-templates"]):
+        result = cli.cmd_running()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert result == 0
+    assert output["count"] == 1
+    assert output["workouts"][0]["id"] == "run-1"
+
+
+def test_running_cli_schedule_template_rejects_non_running_template(capsys, monkeypatch):
+    auth = coros_api.StoredAuth(
+        access_token="t",
+        user_id="u",
+        region="eu",
+        timestamp=0,
+        mobile_access_token=None,
+        mobile_login_payload=None,
+    )
+
+    async def fake_fetch_workout_templates(auth):
+        return [{"id": "bike-1", "name": "Bike", "sport_type": 2}]
+
+    monkeypatch.setattr(cli, "get_stored_auth", lambda: auth)
+    monkeypatch.setattr(coros_api, "fetch_workout_templates", fake_fetch_workout_templates)
+
+    with patch.object(
+        cli.sys,
+        "argv",
+        [
+            "coros-mcp",
+            "running",
+            "schedule-template",
+            "--workout-id",
+            "bike-1",
+            "--happen-day",
+            "20260715",
+        ],
+    ):
+        result = cli.cmd_running()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert result == 1
+    assert output["ok"] is False
+    assert "not found" in output["error"]

@@ -157,6 +157,7 @@ coros-mcp auth-mobile   # Mobile API only (sleep data)
 coros-mcp auth-status   # Check if authenticated
 coros-mcp auth-clear    # Remove stored tokens
 coros-mcp running preview --file workout.json  # Local semantic running workout preview
+coros-mcp running schedule --file workout.json # Schedule semantic running workout from JSON
 ```
 
 ---
@@ -501,6 +502,17 @@ coros-mcp running preview --file workout.json
 ```
 
 For agent/skill workflows, `--json` can pass an inline payload and `--file -` reads JSON from stdin. All commands print JSON and return exit code `0` on success, `1` on validation or compilation failure.
+
+The CLI also exposes explicit write/template actions:
+
+```bash
+coros-mcp running schedule --file workout.json --render-preview
+coros-mcp running save-template --file workout.json
+coros-mcp running list-templates
+coros-mcp running schedule-template --workout-id 1234567890 --happen-day 20260312
+```
+
+`schedule` requires `happen_day` in the JSON payload. `save-template` can omit `happen_day` because templates are not date-bound. Write actions require Coros authentication.
 
 ### `schedule_running_workout`
 

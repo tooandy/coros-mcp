@@ -233,10 +233,11 @@
   - `coros-mcp running render`
   - `coros-mcp running compile`
   - `coros-mcp running preview`
-- 待完成：将写路径逐步补到 CLI
-  - schedule one-off running workout
-  - save/list/schedule running template
-  - auth-aware command output
+- 已完成：将 running 写路径补到 CLI
+  - `coros-mcp running schedule`
+  - `coros-mcp running save-template`
+  - `coros-mcp running list-templates`
+  - `coros-mcp running schedule-template`
 - 待完成：再结合 skill 做高层提效
 
 ---
