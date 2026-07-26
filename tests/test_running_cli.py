@@ -234,3 +234,39 @@ def test_running_cli_schedule_template_rejects_non_running_template(capsys, monk
     assert result == 1
     assert output["ok"] is False
     assert "not found" in output["error"]
+
+
+def test_running_cli_delete_template_checks_template_is_running(capsys, monkeypatch):
+    captured = {}
+    auth = coros_api.StoredAuth(
+        access_token="t",
+        user_id="u",
+        region="eu",
+        timestamp=0,
+        mobile_access_token=None,
+        mobile_login_payload=None,
+    )
+
+    async def fake_fetch_workout_templates(auth):
+        return [{"id": "run-1", "name": "Run Template", "sport_type": 1}]
+
+    async def fake_delete_workout_template(auth, workout_id):
+        captured["workout_id"] = workout_id
+
+    monkeypatch.setattr(cli, "get_stored_auth", lambda: auth)
+    monkeypatch.setattr(coros_api, "fetch_workout_templates", fake_fetch_workout_templates)
+    monkeypatch.setattr(coros_api, "delete_workout_template", fake_delete_workout_template)
+
+    with patch.object(
+        cli.sys,
+        "argv",
+        ["coros-mcp", "running", "delete-template", "--workout-id", "run-1"],
+    ):
+        result = cli.cmd_running()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert result == 0
+    assert output["deleted"] is True
+    assert output["name"] == "Run Template"
+    assert captured["workout_id"] == "run-1"

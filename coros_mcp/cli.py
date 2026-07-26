@@ -233,6 +233,12 @@ def _load_json_arg(file_path: str | None, inline_json: str | None) -> dict:
     return payload
 
 
+def _load_optional_json_arg(file_path: str | None, inline_json: str | None) -> dict | None:
+    if file_path is None and inline_json is None:
+        return None
+    return _load_json_arg(file_path, inline_json)
+
+
 def _get_cli_auth():
     auth = get_stored_auth()
     if auth is None:
@@ -279,6 +285,7 @@ def cmd_running() -> int:
             "save-template",
             "list-templates",
             "schedule-template",
+            "delete-template",
         ),
         help="Local running workout operation to run.",
     )
@@ -348,6 +355,34 @@ def cmd_running() -> int:
             ))
             return 0
 
+        if parsed.action == "delete-template":
+            if not parsed.workout_id:
+                raise ValueError("delete-template requires --workout-id")
+            auth = _get_cli_auth()
+            workouts = asyncio.run(coros_api.fetch_workout_templates(auth))
+            template = next(
+                (
+                    workout
+                    for workout in workouts
+                    if workout.get("id") == str(parsed.workout_id) and workout.get("sport_type") == 1
+                ),
+                None,
+            )
+            if template is None:
+                raise ValueError(f"Running workout template {parsed.workout_id} not found")
+            asyncio.run(coros_api.delete_workout_template(auth, parsed.workout_id))
+            print(json.dumps(
+                {
+                    "ok": True,
+                    "deleted": True,
+                    "workout_id": parsed.workout_id,
+                    "name": template.get("name"),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
         payload = _load_json_arg(parsed.file, parsed.inline_json)
         workout = _running_workout_from_payload(payload, template=parsed.action == "save-template")
 
@@ -406,6 +441,323 @@ def cmd_running() -> int:
         return 1
 
 
+def cmd_planned() -> int:
+    """Training calendar planned workout helpers."""
+    import argparse
+
+    from coros_mcp import coros_api
+
+    parser = argparse.ArgumentParser(
+        prog="coros-mcp planned",
+        description="List, calculate, add, update, or remove planned workout calendar entries.",
+    )
+    parser.add_argument(
+        "action",
+        choices=("list", "list-raw", "remove", "calculate", "add", "update"),
+        help="Planned workout operation to run.",
+    )
+    parser.add_argument("--from", dest="start_day", metavar="YYYYMMDD", help="Start date for list actions.")
+    parser.add_argument("--to", dest="end_day", metavar="YYYYMMDD", help="End date for list actions.")
+    parser.add_argument("--plan-id", help="Top-level plan ID for remove.")
+    parser.add_argument("--id-in-plan", help="Entity idInPlan for remove.")
+    parser.add_argument("--plan-program-id", default="", help="planProgramId for remove.")
+    parser.add_argument("--entity-file", help="Raw entity JSON file for add/update.")
+    parser.add_argument("--entity-json", help="Inline raw entity JSON for add/update.")
+    parser.add_argument("--program-file", help="Raw program JSON file for calculate/add/update.")
+    parser.add_argument("--program-json", help="Inline raw program JSON for calculate/add/update.")
+    parser.add_argument("--version-file", help="Optional explicit versionObject JSON file for add/update.")
+    parser.add_argument("--version-json", help="Optional inline explicit versionObject JSON for add/update.")
+    parsed = parser.parse_args(sys.argv[2:])
+
+    try:
+        auth = _get_cli_auth()
+        if parsed.action in ("list", "list-raw"):
+            if not parsed.start_day or not parsed.end_day:
+                raise ValueError(f"{parsed.action} requires --from and --to")
+            if parsed.action == "list":
+                schedule = asyncio.run(coros_api.fetch_schedule(auth, parsed.start_day, parsed.end_day))
+            else:
+                schedule = asyncio.run(coros_api.fetch_schedule_raw(auth, parsed.start_day, parsed.end_day))
+            print(json.dumps(
+                {
+                    "ok": True,
+                    "schedule": schedule,
+                    "count": len(schedule.get("entities", [])),
+                    "date_range": f"{parsed.start_day} - {parsed.end_day}",
+                },
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        if parsed.action == "remove":
+            if not parsed.plan_id or not parsed.id_in_plan:
+                raise ValueError("remove requires --plan-id and --id-in-plan")
+            asyncio.run(
+                coros_api.remove_scheduled_workout(
+                    auth,
+                    parsed.plan_id,
+                    parsed.id_in_plan,
+                    parsed.plan_program_id or None,
+                )
+            )
+            print(json.dumps(
+                {
+                    "ok": True,
+                    "removed": True,
+                    "plan_id": parsed.plan_id,
+                    "id_in_plan": parsed.id_in_plan,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        program = _load_optional_json_arg(parsed.program_file, parsed.program_json)
+        if parsed.action == "calculate":
+            if program is None:
+                raise ValueError("calculate requires --program-file or --program-json")
+            calculation = asyncio.run(coros_api.calculate_workout_program(auth, program))
+            updated_program = coros_api.apply_workout_calculation(program, calculation)
+            print(json.dumps(
+                {
+                    "ok": True,
+                    "calculation": calculation,
+                    "program": updated_program,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        entity = _load_optional_json_arg(parsed.entity_file, parsed.entity_json)
+        version_object = _load_optional_json_arg(parsed.version_file, parsed.version_json)
+        if entity is None or program is None:
+            raise ValueError(f"{parsed.action} requires --entity-file/--entity-json and --program-file/--program-json")
+
+        if parsed.action == "add":
+            asyncio.run(coros_api.add_planned_workout(auth, entity, program, version_object))
+            print(json.dumps(
+                {
+                    "ok": True,
+                    "added": True,
+                    "happen_day": entity.get("happenDay"),
+                    "id_in_plan": entity.get("idInPlan") or program.get("idInPlan"),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        asyncio.run(coros_api.update_scheduled_workout(auth, entity, program, version_object))
+        print(json.dumps(
+            {
+                "ok": True,
+                "updated": True,
+                "plan_id": entity.get("planId") or program.get("planId"),
+                "id_in_plan": entity.get("idInPlan") or program.get("idInPlan"),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ))
+        return 0
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
+        return 1
+
+
+def cmd_workout() -> int:
+    """Generic workout template helpers."""
+    import argparse
+
+    from coros_mcp import coros_api
+
+    parser = argparse.ArgumentParser(
+        prog="coros-mcp workout",
+        description="List, save, schedule, or delete generic workout templates.",
+    )
+    parser.add_argument(
+        "action",
+        choices=("list-templates", "save-template", "schedule-template", "delete-template"),
+        help="Workout template operation to run.",
+    )
+    parser.add_argument("--file", "-f", default="-", help="Template JSON file for save-template, or '-' for stdin.")
+    parser.add_argument("--json", dest="inline_json", help="Inline template JSON payload for save-template.")
+    parser.add_argument("--workout-id", help="Workout template ID for schedule-template/delete-template.")
+    parser.add_argument("--happen-day", help="YYYYMMDD date for schedule-template.")
+    parser.add_argument("--sort-no", type=int, default=1, help="Order within the day for schedule-template.")
+    parsed = parser.parse_args(sys.argv[2:])
+
+    try:
+        auth = _get_cli_auth()
+        if parsed.action == "list-templates":
+            workouts = asyncio.run(coros_api.fetch_workout_templates(auth))
+            print(json.dumps(
+                {"ok": True, "workouts": workouts, "count": len(workouts)},
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        if parsed.action == "save-template":
+            payload = _load_json_arg(parsed.file, parsed.inline_json)
+            name = payload.get("name")
+            steps = payload.get("steps")
+            if not name or not isinstance(steps, list):
+                raise ValueError("save-template requires JSON fields: name and steps")
+            workout_id = asyncio.run(
+                coros_api.save_workout_template(
+                    auth,
+                    name,
+                    steps,
+                    payload.get("sport_type", 2),
+                    payload.get("intensity_type"),
+                )
+            )
+            total_minutes, steps_count = _summarize_template_steps(steps)
+            print(json.dumps(
+                {
+                    "ok": True,
+                    "saved": True,
+                    "workout_id": workout_id,
+                    "name": name,
+                    "total_minutes": total_minutes,
+                    "steps_count": steps_count,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        if not parsed.workout_id:
+            raise ValueError(f"{parsed.action} requires --workout-id")
+
+        if parsed.action == "delete-template":
+            asyncio.run(coros_api.delete_workout_template(auth, parsed.workout_id))
+            print(json.dumps(
+                {"ok": True, "deleted": True, "workout_id": parsed.workout_id},
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        if not parsed.happen_day:
+            raise ValueError("schedule-template requires --happen-day")
+        response = asyncio.run(
+            coros_api.schedule_workout_template(auth, parsed.workout_id, parsed.happen_day, parsed.sort_no)
+        )
+        print(json.dumps(
+            {
+                "ok": True,
+                "scheduled": True,
+                "workout_id": parsed.workout_id,
+                "happen_day": parsed.happen_day,
+                "response": response,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ))
+        return 0
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
+        return 1
+
+
+def _summarize_template_steps(steps: list[dict]) -> tuple[float, int]:
+    total_minutes = 0.0
+    steps_count = 0
+    for step in steps:
+        if "repeat" in step:
+            sub_steps = step.get("steps", [])
+            total_minutes += sum(sub.get("duration_minutes", 0) for sub in sub_steps) * step.get("repeat", 1)
+            steps_count += 1 + len(sub_steps)
+            continue
+        total_minutes += step.get("duration_minutes", 0)
+        steps_count += 1
+    return total_minutes, steps_count
+
+
+def cmd_strength() -> int:
+    """Strength workout helpers."""
+    import argparse
+
+    from coros_mcp import coros_api
+
+    parser = argparse.ArgumentParser(
+        prog="coros-mcp strength",
+        description="Schedule/save strength workouts or list the exercise catalogue.",
+    )
+    parser.add_argument(
+        "action",
+        choices=("schedule", "save-template", "list-exercises"),
+        help="Strength workout operation to run.",
+    )
+    parser.add_argument("--file", "-f", default="-", help="Strength workout JSON file, or '-' for stdin.")
+    parser.add_argument("--json", dest="inline_json", help="Inline strength workout JSON payload.")
+    parser.add_argument("--sport-type", type=int, default=4, help="Exercise catalogue sport type.")
+    parser.add_argument("--happen-day", help="YYYYMMDD date for schedule; overrides JSON happen_day when present.")
+    parser.add_argument("--sort-no", type=int, default=1, help="Order within the day for schedule.")
+    parsed = parser.parse_args(sys.argv[2:])
+
+    try:
+        auth = _get_cli_auth()
+        if parsed.action == "list-exercises":
+            exercises = asyncio.run(coros_api.fetch_exercises(auth, parsed.sport_type))
+            print(json.dumps(
+                {"ok": True, "exercises": exercises, "count": len(exercises), "sport_type": parsed.sport_type},
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        payload = _load_json_arg(parsed.file, parsed.inline_json)
+        name = payload.get("name")
+        exercises = payload.get("exercises")
+        sets = payload.get("sets", 1)
+        if not name or not isinstance(exercises, list):
+            raise ValueError(f"{parsed.action} requires JSON fields: name and exercises")
+
+        if parsed.action == "save-template":
+            workout_id = asyncio.run(coros_api.save_strength_workout_template(auth, name, exercises, sets))
+            print(json.dumps(
+                {
+                    "ok": True,
+                    "saved": True,
+                    "workout_id": workout_id,
+                    "name": name,
+                    "sets": sets,
+                    "exercise_count": len(exercises),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
+
+        happen_day = parsed.happen_day or payload.get("happen_day")
+        if not happen_day:
+            raise ValueError("schedule requires --happen-day or JSON field: happen_day")
+        response = asyncio.run(
+            coros_api.schedule_strength_workout(auth, name, exercises, happen_day, sets, parsed.sort_no)
+        )
+        print(json.dumps(
+            {
+                "ok": True,
+                "scheduled": True,
+                "name": name,
+                "happen_day": happen_day,
+                "sets": sets,
+                "exercise_count": len(exercises),
+                "response": response,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ))
+        return 0
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
+        return 1
+
+
 def cmd_serve() -> int:
     """Start the MCP server (stdio mode)."""
     from coros_mcp import server
@@ -427,6 +779,9 @@ Usage:
   coros-mcp sync [--from YYYYMMDD] [--to YYYYMMDD]  Sync to local cache (default: 2 years → today)
   coros-mcp cache-status            Show local cache coverage
   coros-mcp running ACTION [--file workout.json]  Local running workout authoring helpers
+  coros-mcp planned ACTION          Training calendar planned workout helpers
+  coros-mcp workout ACTION          Generic workout template helpers
+  coros-mcp strength ACTION         Strength workout helpers
   coros-mcp help                    Show this help message
 
 Running ACTION:
@@ -438,6 +793,26 @@ Running ACTION:
   save-template                      Save semantic running workout JSON as a reusable template
   list-templates                     List reusable running workout templates
   schedule-template                  Schedule a reusable running template by ID
+  delete-template                    Delete a reusable running template by ID
+
+Planned ACTION:
+  list                               List scheduled workouts for a date range
+  list-raw                           List raw scheduled workouts for editing
+  calculate                          Recalculate an edited raw program JSON
+  add                                Add a raw entity/program pair
+  update                             Update a raw entity/program pair
+  remove                             Remove a scheduled workout by IDs
+
+Workout ACTION:
+  list-templates                     List reusable workout templates
+  save-template                      Save a generic workout template from JSON
+  schedule-template                  Schedule a reusable workout template by ID
+  delete-template                    Delete a reusable workout template by ID
+
+Strength ACTION:
+  schedule                           Schedule a one-off strength workout from JSON
+  save-template                      Save a reusable strength workout template
+  list-exercises                     List strength exercise catalogue entries
 """
     )
     return 0
@@ -458,6 +833,9 @@ def main() -> None:
         "sync": cmd_sync,
         "cache-status": cmd_cache_status,
         "running": cmd_running,
+        "planned": cmd_planned,
+        "workout": cmd_workout,
+        "strength": cmd_strength,
         "help": cmd_help,
         "--help": cmd_help,
         "-h": cmd_help,

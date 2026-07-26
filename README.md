@@ -158,7 +158,10 @@ coros-mcp auth-status   # Check if authenticated
 coros-mcp auth-clear    # Remove stored tokens
 coros-mcp running preview --file workout.json  # Local semantic running workout preview
 coros-mcp running schedule --file workout.json # Schedule semantic running workout from JSON
+coros-mcp planned list --from 20260309 --to 20260316  # List scheduled workouts
 ```
+
+CLI commands do not require `coros-mcp serve` to be running. `serve` is only the MCP stdio server entry point.
 
 ---
 
@@ -510,9 +513,42 @@ coros-mcp running schedule --file workout.json --render-preview
 coros-mcp running save-template --file workout.json
 coros-mcp running list-templates
 coros-mcp running schedule-template --workout-id 1234567890 --happen-day 20260312
+coros-mcp running delete-template --workout-id 1234567890
 ```
 
 `schedule` requires `happen_day` in the JSON payload. `save-template` can omit `happen_day` because templates are not date-bound. Write actions require Coros authentication.
+
+The calendar-level planned workout workflow is available from the CLI as well:
+
+```bash
+coros-mcp planned list --from 20260309 --to 20260316
+coros-mcp planned list-raw --from 20260309 --to 20260316
+coros-mcp planned calculate --program-file program.json
+coros-mcp planned update --entity-file entity.json --program-file program.json
+coros-mcp planned add --entity-file entity.json --program-file program.json
+coros-mcp planned remove --plan-id 987654321 --id-in-plan 1234567890 --plan-program-id 1234567890
+```
+
+Use `planned list-raw` before `planned update`; the raw entity/program objects carry the `planId`, `idInPlan`, `planProgramId`, and version fields required by COROS.
+
+Generic workout templates are available through the `workout` CLI group:
+
+```bash
+coros-mcp workout list-templates
+coros-mcp workout save-template --file workout-template.json
+coros-mcp workout schedule-template --workout-id 1234567890 --happen-day 20260312
+coros-mcp workout delete-template --workout-id 1234567890
+```
+
+Use `running` for semantic running templates; use `workout` for the legacy/generic workout template shape used by cycling and interval templates.
+
+Strength workouts are available through the `strength` CLI group:
+
+```bash
+coros-mcp strength list-exercises
+coros-mcp strength save-template --file strength.json
+coros-mcp strength schedule --file strength.json --happen-day 20260312
+```
 
 ### `schedule_running_workout`
 
