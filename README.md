@@ -156,6 +156,7 @@ coros-mcp auth-web      # Web API only — skips mobile login (sleep data obtain
 coros-mcp auth-mobile   # Mobile API only (sleep data)
 coros-mcp auth-status   # Check if authenticated
 coros-mcp auth-clear    # Remove stored tokens
+coros-mcp running preview --file workout.json  # Local semantic running workout preview
 ```
 
 ---
@@ -489,6 +490,17 @@ Use these tools before scheduling a semantic running workout. They are local and
 All four tools accept the same semantic running fields used by `schedule_running_workout`: `name`, `happen_day`, `steps`, optional `description`, and optional `sort_no`.
 
 Successful responses include `"ok": true`. Failures return `"ok": false` plus a human-readable `error`.
+
+The same local authoring loop is also available from the CLI:
+
+```bash
+coros-mcp running validate --file workout.json
+coros-mcp running render --file workout.json
+coros-mcp running compile --file workout.json
+coros-mcp running preview --file workout.json
+```
+
+For agent/skill workflows, `--json` can pass an inline payload and `--file -` reads JSON from stdin. All commands print JSON and return exit code `0` on success, `1` on validation or compilation failure.
 
 ### `schedule_running_workout`
 

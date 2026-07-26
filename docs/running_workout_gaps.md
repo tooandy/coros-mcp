@@ -228,8 +228,16 @@
 
 ### P4
 
-- 将现有 running domain layer 抽为 CLI
-- 再结合 skill 做高层提效
+- 已完成：新增本地 running authoring CLI 底座
+  - `coros-mcp running validate`
+  - `coros-mcp running render`
+  - `coros-mcp running compile`
+  - `coros-mcp running preview`
+- 待完成：将写路径逐步补到 CLI
+  - schedule one-off running workout
+  - save/list/schedule running template
+  - auth-aware command output
+- 待完成：再结合 skill 做高层提效
 
 ---
 

@@ -1,8 +1,10 @@
 """CLI commands for Coros MCP Server."""
 import asyncio
 import getpass
+import json
 import sys
 import time
+from dataclasses import asdict
 
 from coros_mcp.auth.storage import clear_token, get_token, is_keyring_available
 from coros_mcp.coros_api import TOKEN_TTL_MS, get_stored_auth, login, login_mobile, try_auto_login
@@ -216,6 +218,84 @@ def cmd_cache_status() -> int:
     return 0
 
 
+def _load_json_arg(file_path: str | None, inline_json: str | None) -> dict:
+    if inline_json is not None:
+        data = inline_json
+    elif file_path and file_path != "-":
+        with open(file_path, encoding="utf-8") as handle:
+            data = handle.read()
+    else:
+        data = sys.stdin.read()
+
+    payload = json.loads(data)
+    if not isinstance(payload, dict):
+        raise ValueError("running workout input must be a JSON object")
+    return payload
+
+
+def cmd_running() -> int:
+    """Local running workout authoring helpers."""
+    import argparse
+
+    from coros_mcp.running import (
+        compile_running_workout,
+        normalize_running_workout,
+        validate_running_workout,
+    )
+    from coros_mcp.running.render import render_running_workout
+
+    parser = argparse.ArgumentParser(
+        prog="coros-mcp running",
+        description="Validate, render, preview, or compile a semantic running workout JSON payload locally.",
+    )
+    parser.add_argument(
+        "action",
+        choices=("validate", "render", "compile", "preview"),
+        help="Local running workout operation to run.",
+    )
+    input_group = parser.add_mutually_exclusive_group()
+    input_group.add_argument(
+        "--file",
+        "-f",
+        default="-",
+        help="Path to a workout JSON file, or '-' for stdin (default).",
+    )
+    input_group.add_argument(
+        "--json",
+        dest="inline_json",
+        help="Inline workout JSON payload.",
+    )
+    parsed = parser.parse_args(sys.argv[2:])
+
+    try:
+        payload = _load_json_arg(parsed.file, parsed.inline_json)
+        workout = normalize_running_workout(payload)
+        validate_running_workout(workout)
+
+        result: dict = {"ok": True}
+        if parsed.action == "validate":
+            result["valid"] = True
+            result["normalized_workout"] = asdict(workout)
+        elif parsed.action == "render":
+            result["rendered_summary"] = render_running_workout(workout)
+        elif parsed.action == "compile":
+            result["program"] = compile_running_workout(workout)
+        else:
+            result["valid"] = True
+            result["normalized_workout"] = asdict(workout)
+            result["rendered_summary"] = render_running_workout(workout)
+            result["program"] = compile_running_workout(workout)
+
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    except Exception as exc:
+        result = {"ok": False, "error": str(exc)}
+        if parsed.action in ("validate", "preview"):
+            result["valid"] = False
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 1
+
+
 def cmd_serve() -> int:
     """Start the MCP server (stdio mode)."""
     from coros_mcp import server
@@ -236,7 +316,14 @@ Usage:
   coros-mcp auth-clear              Remove stored token
   coros-mcp sync [--from YYYYMMDD] [--to YYYYMMDD]  Sync to local cache (default: 2 years → today)
   coros-mcp cache-status            Show local cache coverage
+  coros-mcp running ACTION [--file workout.json]  Local running workout authoring helpers
   coros-mcp help                    Show this help message
+
+Running ACTION:
+  validate                           Validate semantic running workout JSON
+  render                             Render a human-readable summary
+  compile                            Compile to COROS workout payload
+  preview                            Validate, render, and compile together
 """
     )
     return 0
@@ -256,6 +343,7 @@ def main() -> None:
         "auth-clear": cmd_auth_clear,
         "sync": cmd_sync,
         "cache-status": cmd_cache_status,
+        "running": cmd_running,
         "help": cmd_help,
         "--help": cmd_help,
         "-h": cmd_help,
