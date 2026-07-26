@@ -6,6 +6,8 @@
 
 详细 wire 字段背景见 [Coros_API_Params.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/Coros_API_Params.md)。
 
+百分比 zone 证据状态见 [running_workout_zone_evidence.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/running_workout_zone_evidence.md)。
+
 ---
 
 ## 工具选择
@@ -224,14 +226,12 @@ interval 内有额外校验：
 | `lactate_threshold_zone` | `87-93` |
 | `anaerobic_zone` | `93-100` |
 
-### 阈值家族
+### 心率阈值家族
 
-下面这些 intensity 共用同一组 preset：
+下面这些 intensity 当前共用同一组 preset：
 
 - `heart_rate_percent_reserve`
 - `heart_rate_percent_lthr`
-- `pace_percent_lthr`
-- `effort_pace_percent_threshold`
 
 | preset | 默认百分比 |
 |--------|------------|
@@ -242,10 +242,29 @@ interval 内有额外校验：
 | `speed_endurance_zone` | `105-115` |
 | `anaerobic_power_zone` | `115-130` |
 
+### 配速阈值家族
+
+下面这些 intensity 当前共用同一组 preset：
+
+- `pace_percent_lthr`
+- `effort_pace_percent_threshold`
+
+| preset | 默认百分比 |
+|--------|------------|
+| `active_recovery_zone` | `80-88` |
+| `aerobic_endurance_zone` | `88-95` |
+| `aerobic_power_zone` | `85.1-92.6` |
+| `lactate_threshold_zone` | `100-105` |
+| `speed_endurance_zone` | `105-115` |
+| `anaerobic_power_zone` | `115-130` |
+
 说明：
 
 - 以上百分比表来自当前代码实现。
-- 如果后续抓包证明 COROS 对不同 threshold family 使用不同默认边界，需要同步更新代码、测试和本文档。
+- 配速阈值家族的 `aerobic_power_zone=85.1-92.6` 已由 `%乳酸阈配速` 和 `%等强阈值配速` 样本证明。
+- 心率阈值家族的 `aerobic_power_zone=95-100` 仍是当前实现假设，尚未被带 zone 名称的样本证明。
+- 其他 threshold family zone 仍需要更多样本继续闭合证据。
+- 如果后续抓包证明 COROS 对不同 type 使用不同默认边界，需要同步更新代码、测试和本文档。
 - `zone.preset: "custom"` 时必须提供 `low` 和 `high`，例如 `{"preset": "custom", "low": 92, "high": 96}`。
 
 ---

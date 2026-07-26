@@ -332,10 +332,65 @@ def test_compile_running_workout_supports_effort_pace_percent_threshold():
 
     assert exercise["intensityType"] == 8
     assert exercise["isIntensityPercent"] is True
-    assert exercise["intensityPercent"] == 95_000
-    assert exercise["intensityPercentExtend"] == 100_000
+    assert exercise["intensityPercent"] == 85_100
+    assert exercise["intensityPercentExtend"] == 92_600
     assert exercise["intensityValue"] == 0
     assert exercise["intensityValueExtend"] == 0
+
+
+def test_compile_running_workout_uses_sample_backed_aerobic_power_zone_for_lthr_pace():
+    workout = normalize_running_workout(
+        {
+            "name": "LT aerobic power test",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {
+                        "type": "pace_percent_lthr",
+                        "zone": {"preset": "aerobic_power_zone"},
+                    },
+                }
+            ],
+        }
+    )
+
+    exercise = compile_running_workout(workout)["exercises"][0]
+
+    assert exercise["intensityType"] == 3
+    assert exercise["isIntensityPercent"] is True
+    assert exercise["intensityPercent"] == 85_100
+    assert exercise["intensityPercentExtend"] == 92_600
+
+
+def test_compile_running_workout_does_not_apply_pace_zone_sample_to_hr_reserve():
+    workout = normalize_running_workout(
+        {
+            "name": "HRR aerobic power test",
+            "happen_day": "20260715",
+            "steps": [
+                {
+                    "kind": "step",
+                    "action": "work",
+                    "target": {"type": "time", "value": 20, "unit": "min"},
+                    "intensity": {
+                        "type": "heart_rate_percent_reserve",
+                        "zone": {"preset": "aerobic_power_zone"},
+                    },
+                }
+            ],
+        }
+    )
+
+    exercise = compile_running_workout(workout)["exercises"][0]
+
+    assert exercise["intensityType"] == 2
+    assert exercise["hrType"] == 2
+    assert exercise["isIntensityPercent"] is True
+    assert exercise["intensityPercent"] == 95_000
+    assert exercise["intensityPercentExtend"] == 100_000
 
 
 def test_compile_running_workout_supports_effort_pace_absolute_range():

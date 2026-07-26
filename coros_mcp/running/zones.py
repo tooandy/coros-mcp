@@ -9,7 +9,7 @@ _MAX_HR_ZONES = {
     "anaerobic_zone": (93, 100),
 }
 
-_THRESHOLD_FAMILY_ZONES = {
+_HR_THRESHOLD_FAMILY_ZONES = {
     "active_recovery_zone": (80, 88),
     "aerobic_endurance_zone": (88, 95),
     "aerobic_power_zone": (95, 100),
@@ -18,16 +18,21 @@ _THRESHOLD_FAMILY_ZONES = {
     "anaerobic_power_zone": (115, 130),
 }
 
+_PACE_THRESHOLD_FAMILY_ZONES = {
+    **_HR_THRESHOLD_FAMILY_ZONES,
+    "aerobic_power_zone": (85.1, 92.6),
+}
+
 _ZONE_FAMILY_BY_INTENSITY = {
     "heart_rate_percent_max": _MAX_HR_ZONES,
-    "heart_rate_percent_reserve": _THRESHOLD_FAMILY_ZONES,
-    "heart_rate_percent_lthr": _THRESHOLD_FAMILY_ZONES,
-    "pace_percent_lthr": _THRESHOLD_FAMILY_ZONES,
-    "effort_pace_percent_threshold": _THRESHOLD_FAMILY_ZONES,
+    "heart_rate_percent_reserve": _HR_THRESHOLD_FAMILY_ZONES,
+    "heart_rate_percent_lthr": _HR_THRESHOLD_FAMILY_ZONES,
+    "pace_percent_lthr": _PACE_THRESHOLD_FAMILY_ZONES,
+    "effort_pace_percent_threshold": _PACE_THRESHOLD_FAMILY_ZONES,
 }
 
 
-def resolve_zone_range(intensity_type: str, preset: str) -> tuple[int, int]:
+def resolve_zone_range(intensity_type: str, preset: str) -> tuple[int | float, int | float]:
     family = _ZONE_FAMILY_BY_INTENSITY.get(intensity_type)
     if family is None:
         raise ValueError(f"intensity type '{intensity_type}' does not support zone presets")

@@ -56,6 +56,8 @@
 
 ### 2. 百分比强度映射还没有完全证据闭合
 
+状态：部分推进。
+
 当前已经支持以下 `%` 语义大类：
 
 - `%最大心率`
@@ -65,6 +67,11 @@
 - `%等强阈值配速`
 
 并且已经有一部分 zone family 映射表。
+
+已完成：
+
+- 新增 [running_workout_zone_evidence.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/running_workout_zone_evidence.md)，区分“样本已标注 / 样本未标注 / 当前实现假设”。
+- 已将样本明确证明的配速阈值家族 `aerobic_power_zone=85.1-92.6` 固化到代码、测试和 agent guide。
 
 但从“完全对齐 COROS”角度，还缺最后一步：
 
@@ -198,8 +205,10 @@
 
 ### P2
 
-- 把所有 `%` 强度的 `type × zone × low/high` 证据补齐
-- 将区间映射正式固化到代码、测试、文档
+- 部分完成：新增 zone evidence 文档
+- 部分完成：固化样本已证明的配速阈值家族 `aerobic_power_zone=85.1-92.6`
+- 待完成：把所有 `%` 强度的 `type × zone × low/high` 证据补齐
+- 待完成：将剩余区间映射正式固化到代码、测试、文档
 
 ### P3
 
