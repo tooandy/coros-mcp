@@ -27,25 +27,19 @@
 
 ### 1. MCP 能力还不闭环
 
-当前跑步语义能力主要通过 `schedule_running_workout` 暴露。
+状态：已部分完成。
 
-这意味着：
-
-- 可以直接下发 one-off 跑步课表
-- 但不能把“校验 / 预览 / 编译 / 下发”拆成独立步骤
-
-对 agent 来说，这个入口还不够闭环。
-
-当前缺少的 running-first MCP 能力主要包括：
+已完成：
 
 - `validate_running_workout`
-  - 只做语义校验，返回结构化校验结果
 - `render_running_workout`
-  - 返回更适合人和 agent 阅读的摘要
 - `compile_running_workout`
-  - 返回最终 COROS payload，方便对照和调试
 - `preview_running_workout`
-  - 同时返回 normalized / rendered / compiled 结果，但不真正下发
+
+这些工具已经把“校验 / 预览 / 编译 / 下发”拆成独立步骤，其中前 4 个是只读工具，`schedule_running_workout` 仍然是唯一写日历入口。
+
+仍未完成：
+
 - running template lifecycle
   - 保存跑步模板
   - 更新跑步模板
@@ -56,7 +50,7 @@
 
 - [running_workout_templates.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/running_workout_templates.md)
 
-这是当前最值得优先补齐的一类能力。
+只读 MCP 闭环已经补齐，模板生命周期仍是后续能力。
 
 ---
 
@@ -101,14 +95,15 @@
 
 ### 3. 文档还不够 agent-friendly
 
+状态：已完成第一版。
+
 当前已经有：
 
 - [Coros_API_Params.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/Coros_API_Params.md)
 - [exercises.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/exercises.md)
+- [running_workout_agent_guide.md](/Users/aniss/Documents/Marathon/coros-mcp/docs/running_workout_agent_guide.md)
 
-但从 agent 使用角度，还缺一份更直接的操作型文档。
-
-理想状态下，应当有一份单独文档，明确列出：
+其中 `running_workout_agent_guide.md` 是面向 agent 的操作型文档，已经覆盖：
 
 - 支持的动作枚举
 - 支持的 target 枚举
@@ -119,14 +114,7 @@
 - 推荐调用方式
 - 示例输入
 
-当前知识已经分散在：
-
-- 代码
-- 参数文档
-- 样本文档
-- README
-
-对人类维护者还可以接受，但对大模型/agent 仍然偏分散。
+后续如果 P2 补齐更多 `%` zone 证据，需要同步更新这份文档。
 
 ---
 
@@ -202,11 +190,11 @@
 
 ### P1
 
-- 补齐 MCP 闭环能力
+- 已完成：补齐 MCP 只读闭环能力
   - validate
   - render / preview
   - compile
-- 整理一份 agent-friendly 支持矩阵文档
+- 已完成：整理一份 agent-friendly 支持矩阵文档
 
 ### P2
 
