@@ -40,7 +40,11 @@ from coros_mcp.cache.utils import LOCAL_TZ, fmt_local_time
 from coros_mcp.coros_api import TOKEN_TTL_MS
 from coros_mcp.running import (
     compile_running_workout as _compile_running_workout,
+)
+from coros_mcp.running import (
     normalize_running_workout as _normalize_running_workout,
+)
+from coros_mcp.running import (
     validate_running_workout as _validate_running_workout,
 )
 from coros_mcp.running.render import render_running_workout as _render_running_workout

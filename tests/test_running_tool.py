@@ -10,8 +10,8 @@ from coros_mcp.server import (
     preview_running_workout,
     render_running_workout,
     save_running_workout_template,
-    schedule_running_workout_template,
     schedule_running_workout,
+    schedule_running_workout_template,
     validate_running_workout,
 )
 

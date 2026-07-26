@@ -1,8 +1,7 @@
 import json
 from unittest.mock import patch
 
-from coros_mcp import coros_api
-from coros_mcp import cli
+from coros_mcp import cli, coros_api
 
 
 def _payload() -> dict:
